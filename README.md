@@ -11,7 +11,19 @@ development: {
       network_id: "*",       // Any network (default: none)
       gas: 8000000,
      },
-     
+to set up meta mask for ganache-cli, install meta mask plugin, add new network with 
+
+Network Name: Localhost 8545 (or anything you prefer)
+
+New RPC URL: http://127.0.0.1:8545 (or http://localhost:8545)
+
+Chain ID: 1337 (Ganache’s default chain ID)
+
+Currency Symbol: ETH
+
+Block Explorer URL: (leave blank for local development)
+
+
 to install packages in package.json: npm install
 
 to run ganache-cli: ganache-cli
