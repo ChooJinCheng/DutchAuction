@@ -11,6 +11,7 @@ development: {
       network_id: "*",       // Any network (default: none)
       gas: 8000000,
      },
+     
 to set up meta mask for ganache-cli, install meta mask plugin, add new network with 
 
 Network Name: Localhost 8545 (or anything you prefer)
