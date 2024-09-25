@@ -18,7 +18,7 @@ to run ganache-cli: ganache-cli
 
 to run next.js: npm run dev
 
-to run truffle after edit to contract: truffle migrate --reset --network development
+to run truffle after contract is editted for redeployment: truffle migrate --reset --network development
 
 
 
