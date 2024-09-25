@@ -1,0 +1,19 @@
+{
+  "name": "my-dutch-auction",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "ethers": "^6.13.2",
+    "ganache": "^7.9.2",
+    "next": "14.2.13",
+    "react": "^18",
+    "react-dom": "^18",
+    "web3": "^4.13.0"
+  }
+}
