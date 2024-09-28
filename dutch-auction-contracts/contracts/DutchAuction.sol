@@ -1,8 +1,12 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.0;
+pragma solidity ^0.8.22;
 
-contract DutchAuction {
-    uint public startingPrice;
+import "../../node_modules/@openzeppelin/contracts/access/Ownable.sol";
+import "./ChainvisionToken.sol";
+
+contract DutchAuction is Ownable {
+    ChainvisionToken public token;
+    uint public initialPrice;
     uint public discountRate;
     uint public startAt;
     uint public endAt;
@@ -10,7 +14,6 @@ contract DutchAuction {
     uint public remainingSupply;
     uint public reservedTokens;
     bool public auctionActive;
-    address public auctionOwner;
 
     // Mapping to track how many tokens each bidder reserved
     mapping(address => uint) public reservedTokensByBidder;
@@ -21,22 +24,26 @@ contract DutchAuction {
     event TokensWithdrawn(address indexed bidder, uint amount);
 
     // Constructor with require checks to avoid invalid input values
-    constructor(uint _startingPrice, uint _discountRate, uint _totalSupply) {
-        require(_startingPrice > 0, "Starting price must be greater than zero");
+    constructor(
+        uint _initialPrice,
+        uint _discountRate,
+        uint _totalSupply,
+        address _tokenAddress
+    ) Ownable(msg.sender) {
+        require(_initialPrice > 0, "Starting price must be greater than zero");
         require(_discountRate > 0, "Discount rate must be greater than zero");
         require(_totalSupply > 0, "Total supply must be greater than zero");
 
-        startingPrice = _startingPrice;
+        initialPrice = _initialPrice;
         discountRate = _discountRate;
         totalSupply = _totalSupply;
         remainingSupply = _totalSupply;
         auctionActive = false;
-        auctionOwner = msg.sender;  // Set the owner
+        token = ChainvisionToken(_tokenAddress);
     }
 
     // Start the auction
-    function startAuction(uint duration) external {
-        require(msg.sender == auctionOwner, "Only auction owner can start the auction");
+    function startAuction(uint duration) external onlyOwner {
         require(!auctionActive, "Auction is already active");
         startAt = block.timestamp;
         endAt = block.timestamp + duration;
@@ -50,8 +57,8 @@ contract DutchAuction {
         require(auctionActive, "Auction is not active");
         uint timeElapsed = block.timestamp - startAt;
         uint discount = timeElapsed * discountRate;
-        if (startingPrice > discount) {
-            return startingPrice - discount;
+        if (initialPrice > discount) {
+            return initialPrice - discount;
         } else {
             return 0;
         }
@@ -60,20 +67,26 @@ contract DutchAuction {
     // New function to fetch average price
     function getAveragePrice() public view returns (uint) {
         require(totalSupply > 0, "No tokens available");
-        return startingPrice / 2;  // Example logic for calculating average price
+        return initialPrice / 2; // Example logic for calculating average price
     }
 
     // Reserve tokens and accept payment
     function reserveTokens(uint amount) public payable {
         require(auctionActive, "Auction is not active");
-        require(amount > 0 && amount <= remainingSupply, "Invalid token amount");
+        require(
+            amount > 0 && amount <= remainingSupply,
+            "Invalid token amount"
+        );
         uint currentPrice = getCurrentPrice();
         uint totalPrice = currentPrice * amount;
-        require(msg.value >= totalPrice, "Insufficient ETH to cover token cost");
+        require(
+            msg.value >= totalPrice,
+            "Insufficient ETH to cover token cost"
+        );
 
         reservedTokens += amount;
         remainingSupply -= amount;
-        reservedTokensByBidder[msg.sender] += amount;  // Track bidder's reserved tokens
+        reservedTokensByBidder[msg.sender] += amount; // Track bidder's reserved tokens
 
         // Refund excess ETH if the user overpaid
         if (msg.value > totalPrice) {
@@ -85,16 +98,19 @@ contract DutchAuction {
 
     // End the auction
     function endAuction() public {
-    require(auctionActive, "Auction is not active");
-    require(block.timestamp >= endAt || remainingSupply == 0, "Auction duration has not passed or tokens still remain");
+        require(auctionActive, "Auction is not active");
+        require(
+            block.timestamp >= endAt || remainingSupply == 0,
+            "Auction duration has not passed or tokens still remain"
+        );
 
-    auctionActive = false;
+        auctionActive = false;
 
-    // Emit the auction ended event
-    emit AuctionEnded(block.timestamp);  // Emit current time, not endAt
+        // Emit the auction ended event
+        emit AuctionEnded(block.timestamp); // Emit current time, not endAt
 
-    // Reset all auction variables if needed
-    // Optional: Consider if the auction should reset certain values (remainingSupply, reservedTokens, etc.)
+        // Reset all auction variables if needed
+        // Optional: Consider if the auction should reset certain values (remainingSupply, reservedTokens, etc.)
     }
 
     // Allow bidders to withdraw their reserved tokens after the auction ends
@@ -103,16 +119,15 @@ contract DutchAuction {
         uint reservedAmount = reservedTokensByBidder[msg.sender];
         require(reservedAmount > 0, "No reserved tokens to withdraw");
 
-        reservedTokensByBidder[msg.sender] = 0;  // Reset the reserved tokens for the user
+        reservedTokensByBidder[msg.sender] = 0; // Reset the reserved tokens for the user
         emit TokensWithdrawn(msg.sender, reservedAmount);
 
         // Logic to transfer tokens would go here (if token management was implemented)
     }
 
     // Withdraw funds to the auction owner
-    function withdrawFunds() public {
-        require(msg.sender == auctionOwner, "Only auction owner can withdraw funds");
-        payable(auctionOwner).transfer(address(this).balance);
+    function withdrawFunds() public onlyOwner {
+        payable(address(this)).transfer(address(this).balance);
     }
 
     // Fetch the auction end time
