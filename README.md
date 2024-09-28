@@ -24,13 +24,15 @@ Currency Symbol: ETH
 
 Block Explorer URL: (leave blank for local development)
 
-
+For Next:
 to install packages in package.json: npm install
 
 to run ganache-cli: ganache-cli
 
 to run next.js: npm run dev
 
+For Truffle:
+to install packages in package.json: npm install
 to run truffle after contract is editted for redeployment: truffle migrate --reset --network development
 
 
