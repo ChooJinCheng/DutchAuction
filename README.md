@@ -16,7 +16,7 @@ to set up meta mask for ganache-cli, install meta mask plugin, add new network w
 
 Network Name: Localhost 7545 (or anything you prefer)
 
-New RPC URL: http://127.0.0.1:7545 (or http://localhost:8545)
+New RPC URL: http://127.0.0.1:7545 (or http://localhost:7545)
 
 Chain ID: 1337 (Ganache’s default chain ID)
 
@@ -34,7 +34,5 @@ to run next.js: npm run dev
 For Truffle:
 
 To install packages in package.json: npm install
+
 To run truffle after contract is edited for redeployment: truffle migrate --reset --network development
-
-
-
