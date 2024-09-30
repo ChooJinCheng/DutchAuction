@@ -9,6 +9,7 @@
 
 # testing
 /coverage
+/dutch-auction-contracts/coverage
 
 # next.js
 /.next/
@@ -16,7 +17,8 @@
 
 # production
 /build
-/dutch-auction-contracts/build
+/dutch-auction-contracts/artifacts
+/dutch-auction-contracts/cache
 
 # misc
 .DS_Store
