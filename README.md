@@ -2,23 +2,19 @@ Main page is in src\app\page.js
 
 Start auction is the second page in src\app\start-auction\page.js
 
-src\app\constants.js holds contractAddress to be editted when contract is redeployed through truffle
+src\app\constants.js holds contractAddress to be edited when contract is redeployed through hardhat
 
-dutch-auction-contracts\truffle-config.js currently set for ganache CLI default settings: 
-development: {
-      host: "127.0.0.1",     // Localhost (default: none)
-      port: 7545,            // Standard Ethereum port (default: none)
-      network_id: "*",       // Any network (default: none)
-      gas: 8000000,
-     },
+dutch-auction-contracts\hardhat.config.js currently set for hardhat localhost network default settings: 
+networks: {
+    hardhat: { chainId: 1337 }, //Default on host: 127.0.0.1, port: 8545
+},
      
-to set up meta mask for ganache-cli, install meta mask plugin, add new network with 
+to set up meta mask for hardhat local, install meta mask plugin, add new network with 
 
-Network Name: Localhost 7545 (or anything you prefer)
+Network Name: Localhost 8545 (or anything you prefer)
+New RPC URL: http://127.0.0.1:8545 (or http://localhost:8545)
 
-New RPC URL: http://127.0.0.1:7545 (or http://localhost:7545)
-
-Chain ID: 1337 (Ganache’s default chain ID)
+Chain ID: 1337
 
 Currency Symbol: ETH
 
@@ -27,12 +23,24 @@ Block Explorer URL: (leave blank for local development)
 For Next:
 to install packages in package.json: npm install
 
-to run ganache-cli: ganache-cli
-
 to run next.js: npm run dev
 
-For Truffle:
+For Hardhat:
 
 To install packages in package.json: npm install
 
-To run truffle after contract is edited for redeployment: truffle migrate --reset --network development
+Starting hardhat network:
+//This will start a local Ethereum network and provide you with a list of accounts and their private keys.
+npx hardhat node 
+
+Interaction/Deployment of contract:
+npx hardhat run scripts/deploy.js --network localhost
+npx hardhat run scripts/interact.js --network localhost
+
+OR
+
+npx hardhat console --network localhost
+
+Test:
+npx hardhat test
+npx hardhat coverage
