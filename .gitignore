@@ -10,6 +10,7 @@
 # testing
 /coverage
 /dutch-auction-contracts/coverage
+/dutch-auction-contracts/coverage.json
 
 # next.js
 /.next/

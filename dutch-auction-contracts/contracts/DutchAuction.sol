@@ -66,9 +66,11 @@ contract DutchAuction is Ownable, ReentrancyGuard {
         _;
     }
 
+    receive() external payable {}
+
     // Start the auction
-    function startAuction(uint duration) external onlyOwner {
-        require(!auctionActive, "Auction is already active");
+    function startAuction(uint duration) external onlyOwner notActiveAuction {
+        require(duration >= 60, "Minimum duration is 60");
         startTime = block.timestamp;
         endTime = block.timestamp + duration;
         auctionActive = true;
@@ -230,7 +232,11 @@ contract DutchAuction is Ownable, ReentrancyGuard {
         return reservedTokensByBidder[msg.sender];
     }
 
-    function getCurrentTimesttamp() external view returns (uint) {
+    function getBidsQueueLength() external view returns (uint) {
+        return bidsQueue.length;
+    }
+
+    function getCurrentTimestamp() external view returns (uint) {
         return block.timestamp;
     }
 
