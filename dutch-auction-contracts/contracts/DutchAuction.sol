@@ -2,137 +2,207 @@
 pragma solidity ^0.8.22;
 
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "./ChainvisionToken.sol";
 
-contract DutchAuction is Ownable {
+contract DutchAuction is Ownable, ReentrancyGuard {
     ChainvisionToken public token;
     uint public initialPrice;
-    uint public discountRate;
-    uint public startAt;
-    uint public endAt;
+    uint public finalPrice;
+    uint public minPrice = 100000000000000000; //0.1eth
+    uint public startTime;
+    uint public endTime;
     uint public totalSupply;
-    uint public remainingSupply;
-    uint public reservedTokens;
+    uint public estRemainingSupply;
     bool public auctionActive;
+    bool internalCall = false;
 
+    struct Bid {
+        address bidder;
+        uint256 amount;
+    }
+
+    Bid[] public bidsQueue;
     // Mapping to track how many tokens each bidder reserved
     mapping(address => uint) public reservedTokensByBidder;
 
-    event AuctionStarted(uint startAt, uint endAt);
-    event TokensReserved(address indexed bidder, uint amount, uint totalPrice);
-    event AuctionEnded(uint endAt);
+    event AuctionStarted(uint startTime, uint endTime);
+    event AuctionEnded(uint endTime);
+    event TokensReserved(
+        address indexed bidder,
+        uint tokensAmount,
+        uint tokenPrice
+    );
     event TokensWithdrawn(address indexed bidder, uint amount);
+    event RefundAmount(address bidder, uint amount);
+    event BidSuccess(address bidder, uint amount);
 
-    // Constructor with require checks to avoid invalid input values
-    constructor(
-        uint _initialPrice,
-        uint _discountRate,
-        uint _totalSupply,
-        address _tokenAddress
-    ) Ownable(msg.sender) {
+    constructor(uint _initialPrice, uint _totalSupply) Ownable(msg.sender) {
         require(_initialPrice > 0, "Starting price must be greater than zero");
-        require(_discountRate > 0, "Discount rate must be greater than zero");
         require(_totalSupply > 0, "Total supply must be greater than zero");
 
         initialPrice = _initialPrice;
-        discountRate = _discountRate;
         totalSupply = _totalSupply;
-        remainingSupply = _totalSupply;
+        estRemainingSupply = _totalSupply;
         auctionActive = false;
-        token = ChainvisionToken(_tokenAddress);
+        token = new ChainvisionToken();
+    }
+
+    modifier activeAuction() {
+        require(isAuctionActive(), "Auction is not active");
+        _;
+    }
+
+    modifier notActiveAuction() {
+        require(!isAuctionActive(), "Auction is still active");
+        _;
+    }
+
+    modifier onlyOwnerOrInternal() {
+        require(
+            msg.sender == owner() || internalCall,
+            "You are not authorized to make this call"
+        );
+        _;
     }
 
     // Start the auction
     function startAuction(uint duration) external onlyOwner {
         require(!auctionActive, "Auction is already active");
-        startAt = block.timestamp;
-        endAt = block.timestamp + duration;
+        startTime = block.timestamp;
+        endTime = block.timestamp + duration;
         auctionActive = true;
 
-        emit AuctionStarted(startAt, endAt);
+        emit AuctionStarted(startTime, endTime);
     }
 
-    // Fetch the current price based on time elapsed
-    function getCurrentPrice() public view returns (uint) {
-        require(auctionActive, "Auction is not active");
-        uint timeElapsed = block.timestamp - startAt;
-        uint discount = timeElapsed * discountRate;
-        if (initialPrice > discount) {
-            return initialPrice - discount;
-        } else {
-            return 0;
-        }
-    }
-
-    // New function to fetch average price
-    function getAveragePrice() public view returns (uint) {
-        require(totalSupply > 0, "No tokens available");
-        return initialPrice / 2; // Example logic for calculating average price
-    }
-
-    // Reserve tokens and accept payment
-    function reserveTokens(uint amount) public payable {
-        require(auctionActive, "Auction is not active");
+    function finalizeAuction()
+        public
+        activeAuction
+        onlyOwnerOrInternal
+        nonReentrant
+    {
         require(
-            amount > 0 && amount <= remainingSupply,
-            "Invalid token amount"
-        );
-        uint currentPrice = getCurrentPrice();
-        uint totalPrice = currentPrice * amount;
-        require(
-            msg.value >= totalPrice,
-            "Insufficient ETH to cover token cost"
-        );
-
-        reservedTokens += amount;
-        remainingSupply -= amount;
-        reservedTokensByBidder[msg.sender] += amount; // Track bidder's reserved tokens
-
-        // Refund excess ETH if the user overpaid
-        if (msg.value > totalPrice) {
-            payable(msg.sender).transfer(msg.value - totalPrice);
-        }
-
-        emit TokensReserved(msg.sender, amount, totalPrice);
-    }
-
-    // End the auction
-    function endAuction() public {
-        require(auctionActive, "Auction is not active");
-        require(
-            block.timestamp >= endAt || remainingSupply == 0,
+            !_isAuctionRunning() || _isSupplyDepleted(),
             "Auction duration has not passed or tokens still remain"
         );
 
         auctionActive = false;
+        internalCall = false;
+
+        uint remainingTokens = totalSupply;
+        uint bidIndex = 0;
+
+        while (remainingTokens > 0 && bidIndex < bidsQueue.length) {
+            Bid memory currentBid = bidsQueue[bidIndex];
+            uint bidderAmount = currentBid.amount;
+            uint pricePerToken = finalPrice;
+
+            uint tokensToBuy = bidderAmount / pricePerToken;
+            if (tokensToBuy > remainingTokens) {
+                tokensToBuy = remainingTokens;
+            }
+
+            uint totalCost = tokensToBuy * pricePerToken;
+            uint refund = bidderAmount - totalCost;
+
+            if (tokensToBuy > 0) {
+                reservedTokensByBidder[currentBid.bidder] += tokensToBuy;
+                remainingTokens -= tokensToBuy;
+                emit TokensReserved(
+                    currentBid.bidder,
+                    tokensToBuy,
+                    pricePerToken
+                );
+            }
+
+            if (refund > 0) {
+                _refundAmount(currentBid.bidder, refund);
+                emit RefundAmount(currentBid.bidder, refund);
+            }
+
+            bidIndex++;
+        }
+
+        //Make full refund to bidders that did not get allocated any tokens
+        while (bidIndex < bidsQueue.length) {
+            Bid memory currentBid = bidsQueue[bidIndex];
+            _refundAmount(currentBid.bidder, currentBid.amount);
+            emit RefundAmount(currentBid.bidder, currentBid.amount);
+
+            bidIndex++;
+        }
+
+        //Reset auction variables
+        finalPrice = initialPrice;
+        estRemainingSupply = totalSupply;
+        delete bidsQueue;
 
         // Emit the auction ended event
-        emit AuctionEnded(block.timestamp); // Emit current time, not endAt
+        emit AuctionEnded(block.timestamp);
+    }
 
-        // Reset all auction variables if needed
-        // Optional: Consider if the auction should reset certain values (remainingSupply, reservedTokens, etc.)
+    function bid() external payable activeAuction {
+        require(_isAuctionRunning(), "Auction has ended");
+        finalPrice = getCurrentPrice();
+        uint pricePerToken = finalPrice;
+        uint tokenReserved = msg.value / pricePerToken;
+
+        if (tokenReserved > estRemainingSupply) {
+            tokenReserved = estRemainingSupply;
+        }
+
+        estRemainingSupply -= tokenReserved;
+
+        bidsQueue.push(Bid({bidder: msg.sender, amount: msg.value}));
+
+        emit BidSuccess(msg.sender, pricePerToken);
+        if (_isSupplyDepleted()) {
+            internalCall = true;
+            finalizeAuction();
+        }
+    }
+
+    function getCurrentPrice() public view returns (uint) {
+        if (!_isAuctionRunning()) {
+            return finalPrice;
+        }
+        uint timeElapsed = block.timestamp - startTime;
+        uint priceDrop = (initialPrice - minPrice) / (endTime - startTime);
+        uint currentPrice = initialPrice - (priceDrop * timeElapsed);
+        return currentPrice < minPrice ? minPrice : currentPrice;
     }
 
     // Allow bidders to withdraw their reserved tokens after the auction ends
-    function withdrawTokens() public {
-        require(!auctionActive, "Auction is still active");
+    function withdrawTokens() external notActiveAuction nonReentrant {
         uint reservedAmount = reservedTokensByBidder[msg.sender];
         require(reservedAmount > 0, "No reserved tokens to withdraw");
 
-        reservedTokensByBidder[msg.sender] = 0; // Reset the reserved tokens for the user
-        emit TokensWithdrawn(msg.sender, reservedAmount);
+        reservedTokensByBidder[msg.sender] = 0;
 
-        // Logic to transfer tokens would go here (if token management was implemented)
+        token.mintTokens(msg.sender, reservedAmount);
+
+        emit TokensWithdrawn(msg.sender, reservedAmount);
     }
 
     // Withdraw funds to the auction owner
-    function withdrawFunds() public onlyOwner {
-        payable(address(this)).transfer(address(this).balance);
+    function withdrawFunds() external onlyOwner nonReentrant {
+        (bool success, ) = msg.sender.call{value: address(this).balance}("");
+
+        require(success, "Funds not withdrawn successfully");
     }
 
-    // Fetch the auction end time
-    function getEndTime() public view returns (uint) {
-        return endAt;
+    function _refundAmount(address bidder, uint amount) internal {
+        (bool success, ) = bidder.call{value: amount}("");
+        require(success, "Funds not refunded successfully");
+    }
+
+    function _isAuctionRunning() internal view returns (bool) {
+        return block.timestamp < endTime ? true : false;
+    }
+
+    function _isSupplyDepleted() internal view returns (bool) {
+        return estRemainingSupply <= 0 ? true : false;
     }
 
     // Check if the auction is active
@@ -140,13 +210,29 @@ contract DutchAuction is Ownable {
         return auctionActive;
     }
 
-    // Fetch the remaining token supply
-    function getRemainingSupply() public view returns (uint) {
-        return remainingSupply;
+    function getRemainingTime() public view activeAuction returns (uint) {
+        return endTime - block.timestamp;
     }
 
-    // Fetch the reserved tokens
-    function getReservedTokens() public view returns (uint) {
-        return reservedTokens;
+    function getEndTime() public view returns (uint) {
+        return endTime;
     }
+
+    function getStartTime() public view returns (uint) {
+        return startTime;
+    }
+
+    function getestRemainingSupply() public view returns (uint) {
+        return estRemainingSupply;
+    }
+
+    function getReservedToken() external view returns (uint) {
+        return reservedTokensByBidder[msg.sender];
+    }
+
+    function getCurrentTimesttamp() external view returns (uint) {
+        return block.timestamp;
+    }
+
+    function triggerDummyBlock() external {}
 }
