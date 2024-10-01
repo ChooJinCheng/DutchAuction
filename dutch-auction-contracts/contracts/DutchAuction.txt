@@ -66,9 +66,9 @@ contract DutchAuction is Ownable, ReentrancyGuard {
         _;
     }
 
-    //Fallback function to receive any ether that has no msg.data
     receive() external payable {}
 
+    // Start the auction
     function startAuction(uint duration) external onlyOwner notActiveAuction {
         require(duration >= 60, "Minimum duration is 60");
         startTime = block.timestamp;
@@ -90,13 +90,11 @@ contract DutchAuction is Ownable, ReentrancyGuard {
         );
 
         auctionActive = false;
-        //Ensure call to this function is only made available through internal call within contract and owner call
         internalCall = false;
 
         uint remainingTokens = totalSupply;
         uint bidIndex = 0;
 
-        //Go through all bidders, allocate them tokens and refund any excess eth
         while (remainingTokens > 0 && bidIndex < bidsQueue.length) {
             Bid memory currentBid = bidsQueue[bidIndex];
             uint bidderAmount = currentBid.amount;
@@ -142,6 +140,7 @@ contract DutchAuction is Ownable, ReentrancyGuard {
         estRemainingSupply = totalSupply;
         delete bidsQueue;
 
+        // Emit the auction ended event
         emit AuctionEnded(block.timestamp);
     }
 
@@ -208,6 +207,7 @@ contract DutchAuction is Ownable, ReentrancyGuard {
         return estRemainingSupply <= 0 ? true : false;
     }
 
+    // Check if the auction is active
     function isAuctionActive() public view returns (bool) {
         return auctionActive;
     }
@@ -241,12 +241,4 @@ contract DutchAuction is Ownable, ReentrancyGuard {
     }
 
     function triggerDummyBlock() external {}
-
-    function refundAmountPublic(
-        address bidder,
-        uint amount
-    ) external nonReentrant {
-        (bool success, ) = bidder.call{value: amount}("");
-        require(success, "Funds not refunded successfully");
-    }
 }
