@@ -9,9 +9,11 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "ethers": "^6.13.2",
+    "@fortawesome/free-solid-svg-icons": "^6.6.0",
+    "@fortawesome/react-fontawesome": "^0.2.2",
+    "ethers": "^6.13.4",
     "ganache": "^7.9.2",
-    "next": "14.2.13",
+    "next": "^14.2.13",
     "react": "^18",
     "react-dom": "^18",
     "web3": "^4.13.0"

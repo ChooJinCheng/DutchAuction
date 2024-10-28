@@ -9,6 +9,9 @@ async function main() {
 
     console.log("DutchAuction address:", await dutchAuction.getAddress());
 
+    const ownerAddress = await dutchAuction.getOwner();
+    console.log("Owner's address:", ownerAddress);
+
     // Start the auction as the owner
     const auctionDuration = 3600;
     await dutchAuction.connect(owner).startAuction(auctionDuration);

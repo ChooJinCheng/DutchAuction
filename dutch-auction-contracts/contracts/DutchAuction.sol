@@ -48,6 +48,11 @@ contract DutchAuction is Ownable, ReentrancyGuard {
         token = new ChainvisionToken();
     }
 
+    // New function to get the owner's address
+    function getOwner() external view returns (address) {
+        return owner();
+    }
+
     modifier activeAuction() {
         require(isAuctionActive(), "Auction is not active");
         _;
@@ -69,7 +74,7 @@ contract DutchAuction is Ownable, ReentrancyGuard {
     //Fallback function to receive any ether that has no msg.data
     receive() external payable {}
 
-    //Need to call from to start auction
+    //Need to call from frontend to start the auction (done)
     function startAuction(uint duration) external onlyOwner notActiveAuction {
         require(duration >= 60, "Minimum duration is 60");
         startTime = block.timestamp;
@@ -259,3 +264,4 @@ contract DutchAuction is Ownable, ReentrancyGuard {
         require(success, "Funds not refunded successfully");
     }
 }
+

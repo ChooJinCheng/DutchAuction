@@ -1,16 +1,21 @@
-'use client';  // Ensures Next.js runs this code on the client side
+'use client';
 
+import { formatEther, parseEther } from 'ethers';
 import { useState, useEffect } from 'react';
-import { Contract, BrowserProvider, formatEther, parseEther } from 'ethers';
-import contractJson from '../../dutch-auction-contracts/build/contracts/DutchAuction.json';
-import { contractAddress } from './constants';  // Adjust this import if necessary
+// import { useRouter } from 'next/navigation';
+import { Contract, BrowserProvider } from 'ethers';
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
+import { faSignOutAlt } from '@fortawesome/free-solid-svg-icons';
+
+import { contractAddress, contractJson, getNetworkName } from './constants';
 
 export default function Home() {
   const [account, setAccount] = useState(null);
   const [contract, setContract] = useState(null);
   const [totalSupply, setTotalSupply] = useState(null);
-  const [averagePrice, setAveragePrice] = useState(null);  // Added back the average price
+  const [averagePrice, setAveragePrice] = useState(null);
   const [currentPrice, setCurrentPrice] = useState(null);
+  const [startTime, setStartTime] = useState(null);
   const [endTime, setEndTime] = useState(null);
   const [remainingSupply, setRemainingSupply] = useState(null);
   const [reservedTokens, setReservedTokens] = useState(null);
@@ -18,17 +23,43 @@ export default function Home() {
   const [timeLeft, setTimeLeft] = useState(null);
   const [bidAmount, setBidAmount] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
-  const [auctionEnded, setAuctionEnded] = useState(false);  // Track if the auction has ended
-  const [canWithdraw, setCanWithdraw] = useState(false);  // Track if tokens can be withdrawn
-  const [loading, setLoading] = useState(false);  // Loading spinner for bid submission
+  const [auctionEnded, setAuctionEnded] = useState(false);
+  const [canWithdraw, setCanWithdraw] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [ethBalance, setEthBalance] = useState(null);
+  const [network, setNetwork] = useState(null);
+  let provider; // Declare provider her (new)
 
+  // const router = useRouter();
+
+  // Automatically connect to MetaMask on load if available and previously connected
+  useEffect(() => {
+    const autoConnectWallet = async () => {
+      const savedAccount = localStorage.getItem('connectedAccount');
+      if (typeof window.ethereum !== 'undefined' && savedAccount) {
+        const provider = new BrowserProvider(window.ethereum);
+        const accounts = await provider.send('eth_accounts', []);
+
+        // If saved account exists in MetaMask, set account and call connectWallet
+        if (accounts.includes(savedAccount)) {
+          setAccount(savedAccount);
+          await connectWallet();
+        }
+      }
+    };
+    autoConnectWallet();
+  }, []);  // Runs only on initial load
+
+ 
   // Connect to MetaMask
   const connectWallet = async () => {
     if (typeof window.ethereum !== 'undefined') {
       try {
-        const provider = new BrowserProvider(window.ethereum);
+        provider = new BrowserProvider(window.ethereum); // Initialize provider here
         const accounts = await provider.send('eth_requestAccounts', []);
-        setAccount(accounts[0]);
+        const account = accounts[0];
+        setAccount(account);
+        localStorage.setItem('connectedAccount', account); // Save connected account
 
         const signer = await provider.getSigner();
         const contractInstance = new Contract(contractAddress, contractJson.abi, signer);
@@ -36,6 +67,20 @@ export default function Home() {
 
         // Fetch contract values after connection
         await fetchContractData(contractInstance);
+
+        // Fetch network information
+        const network = await provider.getNetwork();
+        setNetwork({
+          name: getNetworkName(network.chainId), // Retrieve and set the network name
+          chainId: network.chainId,
+        });
+
+        // Only fetch balance if an account is connected
+        await fetchEthBalance(account);
+        
+        // Set up event listeners
+        setupEventListeners(contractInstance);
+
       } catch (error) {
         console.error("Error connecting to MetaMask:", error);
       }
@@ -44,15 +89,62 @@ export default function Home() {
     }
   };
 
+  const fetchEthBalance = async (account) => {
+    if (!account || !provider) return;
+    try {
+      const balance = await provider.getBalance(account);
+      setEthBalance(balance.toString());
+    } catch (error) {
+      console.error("Error fetching ETH balance:", error);
+    }
+  };
+
+  // const handleGoToAdminPage = () => {
+  //   // Ensure account is defined before navigating
+  //   if (account) {
+  //     router.push(`/start-auction?account=${account}`); // Construct URL with query parameters
+  //   } else {
+  //     console.warn("Account is not defined. Cannot navigate to admin page.");
+  //   }
+  // };
+  
+  // Disconnect from wallet
+  const disconnectWallet = () => {
+    setAccount(null);
+    setContract(null);
+    localStorage.removeItem('connectedAccount'); // Remove connected account from localStorage
+
+    // Clear other states
+    setTotalSupply(null);
+    setAveragePrice(null);
+    setCurrentPrice(null);
+    setEndTime(null);
+    setRemainingSupply(null);
+    setReservedTokens(null);
+    setIsAuctionActive(false);
+    setTimeLeft(null);
+    setBidAmount('');
+    setErrorMessage('');
+    setAuctionEnded(false);
+    setCanWithdraw(false);
+    setLoading(false);
+    setEthBalance(null);
+    setNetwork(null);
+
+    if (contract) {
+      contract.removeAllListeners();
+    }
+  };
+
   // Fetch data from the contract
   const fetchContractData = async (contractInstance) => {
     try {
       const auctionStatus = await contractInstance.isAuctionActive();
       const totalSupply = await contractInstance.totalSupply();
-      const averagePrice = await contractInstance.getAveragePrice();  // Fetching average price
+      const averagePrice = await contractInstance.getAveragePrice();
       setIsAuctionActive(auctionStatus);
       setTotalSupply(totalSupply.toString());
-      setAveragePrice(formatEther(averagePrice));  // Display average price
+      setAveragePrice(formatEther(averagePrice));
 
       if (auctionStatus) {
         const currentPrice = await contractInstance.getCurrentPrice();
@@ -67,146 +159,116 @@ export default function Home() {
         calculateTimeLeft(Number(endTime.toString()));
       } else if (!auctionStatus && !auctionEnded) {
         setAuctionEnded(true);
-        setCanWithdraw(true);  // Enable withdraw functionality after auction ends
-        setIsAuctionActive(false);
+        setCanWithdraw(true);
       }
     } catch (error) {
       console.error("Error fetching contract data:", error);
     }
   };
 
-  // Polling logic for contract data refresh
-  useEffect(() => {
-    let interval;
-    if (contract && isAuctionActive) {
-      fetchContractData(contract);
-      interval = setInterval(() => fetchContractData(contract), 30000);  // Poll only when auction is active
-    }
-    return () => clearInterval(interval);
-  }, [contract, isAuctionActive]);
+  // New New New
+  const setupEventListeners = (contractInstance) => {
+    // Listen for AuctionStarted events
+    contractInstance.on("AuctionStarted", (start, end) => {
+      console.log("AuctionStarted Event received:", start, end);
+      setIsAuctionActive(true);
+      setStartTime(start);
+      setEndTime(end);
+      setTimeLeft(end - Math.floor(Date.now() / 1000));
+    });
 
-  // Timer function to calculate remaining time
+    // Listen for AuctionEnded events if necessary
+    contractInstance.on("AuctionEnded", () => {
+      console.log("AuctionEnded Event received");
+      setIsAuctionActive(false);
+      setAuctionEnded(true);
+      setCanWithdraw(true);
+    });
+  };
+
   const calculateTimeLeft = (endTime) => {
-    const now = Math.floor(Date.now() / 1000);
-    const timeLeft = endTime - now;
-    setTimeLeft(timeLeft);
-
-    if (timeLeft > 0) {
-      const timer = setInterval(() => {
-        const newTimeLeft = endTime - Math.floor(Date.now() / 1000);
-        setTimeLeft(newTimeLeft);
-
-        if (newTimeLeft <= 0) {
-          clearInterval(timer);
-          setIsAuctionActive(false);  // Auction has ended
-        }
-      }, 1000);
-
-      return () => clearInterval(timer);
-    } else {
-      setIsAuctionActive(false);  // Auction has already ended
+    const currentTime = Math.floor(Date.now() / 1000);
+    setTimeLeft(endTime - currentTime);
+    
+    if (timeLeft <= 0) {
+      setIsAuctionActive(false);
+      setAuctionEnded(true);
+      setCanWithdraw(true);
+      alert("Auction has ended!");
     }
   };
 
-  // Format time left to display in minutes and seconds
+  useEffect(() => {
+    if (isAuctionActive && timeLeft > 0) {
+      const timer = setInterval(() => {
+        setTimeLeft((prevTime) => prevTime - 1);
+      }, 1000);
+      return () => clearInterval(timer);
+    } else if (timeLeft <= 0 && isAuctionActive) {
+      setIsAuctionActive(false);
+      setAuctionEnded(true);
+      setCanWithdraw(true);
+      alert("Auction has ended!");
+    }
+  }, [timeLeft, isAuctionActive]);
+
   const formatTimeLeft = () => {
-    if (timeLeft <= 0) return 'Auction ended';
+    if (timeLeft === null) return '';
     const minutes = Math.floor(timeLeft / 60);
     const seconds = timeLeft % 60;
-    return `${minutes} minutes, ${seconds} seconds left`;
-  };
-
-  // Handle user bid submission
-  const handleBidSubmit = async () => {
-    if (contract && bidAmount && isAuctionActive) {
-      try {
-        setLoading(true);  // Show spinner during transaction
-        const tx = await contract.reserveTokens(parseInt(bidAmount), { value: parseEther(bidAmount) });
-        await tx.wait();  // Wait for the transaction to be mined
-        alert(`Bid of ${bidAmount} ETH submitted successfully!`);
-        fetchContractData(contract);  // Refetch contract data after bid
-        setErrorMessage('');
-      } catch (error) {
-        console.error("Error submitting bid:", error);
-        setErrorMessage('Bid submission failed. Please try again.');
-      } finally {
-        setLoading(false);  // Hide spinner
-      }
-    } else {
-      setErrorMessage('Auction is not active or invalid bid amount.');
-    }
-  };
-
-  // Handle withdraw tokens
-  const handleWithdraw = async () => {
-    if (contract && canWithdraw) {
-      try {
-        const tx = await contract.withdrawTokens();  // Call the withdraw function
-        await tx.wait();  // Wait for the transaction to be mined
-        alert("Tokens withdrawn successfully!");
-        fetchContractData(contract);  // Refetch contract data
-      } catch (error) {
-        console.error("Error withdrawing tokens:", error);
-        setErrorMessage('Withdrawal failed. Please try again.');
-      }
-    }
+    return `${minutes}:${seconds < 10 ? '0' + seconds : seconds}`;
   };
 
   return (
     <div className="auction-container">
-      <button onClick={connectWallet}>
-        {account ? `Connected: ${account}` : 'Connect Wallet'}
-      </button>
-
-      {account && (
+      {!account ? (
+        <button onClick={connectWallet}>Connect Wallet</button>
+      ) : (
         <div className="auction-content">
-          <h2>Auction Details</h2>
-
+          {/* New Header Section */}
+          <div className="header-section">
+            <h3>Chainvision</h3>
+            <h3>ETH: {ethBalance ? `${parseFloat(formatEther(ethBalance)).toFixed(4)}` : 'Loading...'}</h3>
+            <h3>Current Chain: {network ? `${network.chainId}` : 'Loading network...'}</h3>
+            <div onClick={disconnectWallet} style={{ cursor: 'pointer', display: 'inline-block', marginRight: '20px' }}>
+              <FontAwesomeIcon icon={faSignOutAlt} size="lg" />
+            </div>
+          </div>
+  
+          <h2>Wallet Address: {account}</h2>
           <a href="/start-auction">
-            <button className="button">Go to Admin Page</button>
+            <button className="Adminbutton">Go to Admin Page</button>
           </a>
-
-          <p>Total Supply of Dutch Tokens: {totalSupply}</p>
-          <p>Average Price of Dutch Tokens: {averagePrice} ETH</p>  {/* Displaying average price */}
-
+          
+          <h3>Total Supply: {totalSupply}</h3>
+          <h3>Average Price (ETH/CVN): {averagePrice} ETH</h3>
+  
           {isAuctionActive ? (
-            <>
-              <div className="banner">🚨 Auction is Active! 🚨</div>
-              <p>Current Bid Price: {currentPrice} ETH</p>
-              <p>Reserved Dutch Tokens: {reservedTokens}</p>
-              <p>Remaining Auction Token Supply: {remainingSupply}</p>
-              <p>Auction End Time: {new Date(endTime * 1000).toLocaleString()}</p>
-              <p>{formatTimeLeft()}</p>
-
-              <div>
-                <label>
-                  Enter Bid Amount (ETH):
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={bidAmount}
-                    onChange={(e) => setBidAmount(e.target.value)}
-                  />
-                </label>
-                <button onClick={handleBidSubmit} disabled={loading}>
-                  {loading ? 'Submitting...' : 'Submit Bid'}
-                </button>
-              </div>
-
-              {errorMessage && <p style={{ color: 'red' }}>{errorMessage}</p>}
-            </>
-          ) : auctionEnded ? (
-            <>
-              <p>The auction has ended. You can now withdraw your tokens.</p>
-              <button onClick={handleWithdraw}>Withdraw Tokens</button>
-            </>
+            <div>
+              <h3>Current Price: {currentPrice} ETH</h3>
+              <h3>End Time: {new Date(endTime * 1000).toLocaleString()}</h3>
+              <h3>Remaining Supply: {remainingSupply}</h3>
+              <h3>Reserved Tokens: {reservedTokens}</h3>
+              <h3>Time Left: {formatTimeLeft()}</h3>
+              <input
+                type="number"
+                placeholder="Enter bid amount"
+                value={bidAmount}
+                onChange={(e) => setBidAmount(e.target.value)}
+              />
+              <button onClick={handleBidSubmit} disabled={loading}>
+                {loading ? 'Submitting...' : 'Place Bid'}
+              </button>
+            </div>
           ) : (
-            <>
-              <p>The auction is not active at the moment.</p>
-              {<button onClick={handleWithdraw}>Withdraw Tokens</button>}
-            </>
+            <div>
+              <h3>Auction Status: {auctionEnded ? 'Auction has ended' : 'Auction is not active'}</h3>
+              {canWithdraw && (
+                <button onClick={handleWithdraw}>Withdraw Tokens</button>
+              )}
+            </div>
           )}
+          {errorMessage && <p style={{ color: 'red' }}>{errorMessage}</p>}
         </div>
       )}
     </div>

@@ -1,3 +1,35 @@
+# DutchAuction
+
+1. Introduction
+
+This is a project development submission for NTU SC4053 Blockchain Technology Course
+
+Team Members
+- Endy
+- Jonathan Lim Jun Wei (U2121770L)
+- JC
+
+2. Setup Steps for Metamask
+# 2.1 Configure MetaMask for Localhost (Hardhat Network):
+    o   Open MetaMask and click on "add network manually"
+        o   Use the details provided:
+        o	Network Name: Localhost 8545
+        o	RPC URL: http://127.0.0.1:8545
+        o	Chain ID: 1337
+        o	Currency Symbol: ETH
+        o	Block explorer URL (Optional): Leave blank
+
+3. How to start project locally
+
+# 3.1 Install node dependencies
+run the following command in the root of this project:
+- npm install
+
+# 3.2 Compile smart contracts
+run the following command in the root of this project
+- npm run compile
+
+
 Main page is in src\app\page.js
 
 Start auction is the second page in src\app\start-auction\page.js
