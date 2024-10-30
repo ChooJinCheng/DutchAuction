@@ -118,6 +118,7 @@ export default function Home() {
     setTotalSupply(null);
     setAveragePrice(null);
     setCurrentPrice(null);
+    setStartTime(null);
     setEndTime(null);
     setRemainingSupply(null);
     setReservedTokens(null);
@@ -166,26 +167,85 @@ export default function Home() {
     }
   };
 
-  // New New New
-  const setupEventListeners = (contractInstance) => {
-    // Listen for AuctionStarted events
-    contractInstance.on("AuctionStarted", (start, end) => {
-      console.log("AuctionStarted Event received:", start, end);
-      setIsAuctionActive(true);
-      setStartTime(start);
-      setEndTime(end);
-      setTimeLeft(end - Math.floor(Date.now() / 1000));
-    });
+  // Setup event listeners within useEffect
+  useEffect(() => {
+    const savedStatus = localStorage.getItem('auctionStatus');
+    const savedStartTime = localStorage.getItem('auctionStartTime');
+    const savedEndTime = localStorage.getItem('auctionEndTime');
 
-    // Listen for AuctionEnded events if necessary
-    contractInstance.on("AuctionEnded", () => {
-      console.log("AuctionEnded Event received");
-      setIsAuctionActive(false);
-      setAuctionEnded(true);
-      setCanWithdraw(true);
-    });
+    if (savedStatus === 'ongoing' && savedStartTime && savedEndTime) {
+        setIsAuctionActive(true);
+        setStartTime(parseInt(savedStartTime, 10));
+        setEndTime(parseInt(savedEndTime, 10));
+        setTimeLeft(parseInt(savedEndTime, 10) - Math.floor(Date.now() / 1000));
+    }
+
+    if (contract) {
+        const startAuction = async (startTime, endTime) => {
+            setIsAuctionActive(true);
+            setStartTime(startTime);
+            setEndTime(endTime);
+            setTimeLeft(endTime - Math.floor(Date.now() / 1000));
+            await fetchTotalSupply(); // Fetch total supply when the auction starts
+        };
+
+        // Event listener for the "AuctionStarted" event
+        contract.on("AuctionStarted", startAuction);
+
+        // Fetch initial auction details asynchronously
+        const initializeAuctionDetails = async () => {
+            try {
+                await fetchTotalSupply();
+                // await fetchCurrentPrice();
+                // await fetchRemainingSupply();
+                // await fetchReservedTokens();
+            } catch (error) {
+                console.error("Error fetching auction details:", error);
+            }
+        };
+
+        initializeAuctionDetails();
+
+        // Cleanup function to remove the event listener
+        return () => {
+            contract.off("AuctionStarted", startAuction);
+        };
+    }
+}, [contract]);
+
+
+  // Total Supply
+  const fetchTotalSupply = async () => {
+    try {
+        const supply = await contract.totalSupply(); // Call the totalSupply function
+        setTotalSupply(supply.toString()); // Store the supply in state
+    } catch (error) {
+        console.error("Error fetching total supply:", error);
+    }
   };
 
+
+//   // Current Price
+//   const fetchCurrentPrice = async () => {
+//     const currentPrice = await contract.getCurrentPrice();
+//     setCurrentPrice(ethers.utils.formatEther(currentPrice));
+//   };
+
+//  // Remaining Supply
+//   const fetchRemainingSupply = async () => {
+//     const remainingSupply = await contract.getestRemainingSupply();
+//     setRemainingSupply(remainingSupply.toString());
+//   };
+
+
+//   // Reserved Tokens
+//   const fetchReservedTokens = async () => {
+//     const reserved = await contract.getReservedToken();
+//     setReservedTokens(reserved.toString());
+//   };
+
+
+  // //
   const calculateTimeLeft = (endTime) => {
     const currentTime = Math.floor(Date.now() / 1000);
     setTimeLeft(endTime - currentTime);
@@ -225,7 +285,6 @@ export default function Home() {
         <button onClick={connectWallet}>Connect Wallet</button>
       ) : (
         <div className="auction-content">
-          {/* New Header Section */}
           <div className="header-section">
             <h3>Chainvision</h3>
             <h3>ETH: {ethBalance ? `${parseFloat(formatEther(ethBalance)).toFixed(4)}` : 'Loading...'}</h3>
@@ -234,38 +293,46 @@ export default function Home() {
               <FontAwesomeIcon icon={faSignOutAlt} size="lg" />
             </div>
           </div>
-  
+
           <h2>Wallet Address: {account}</h2>
           <a href="/start-auction">
             <button className="Adminbutton">Go to Admin Page</button>
           </a>
-          
-          <h3>Total Supply: {totalSupply}</h3>
+
+          <h3>Total Supply: {totalSupply || 'Loading...'}</h3>
           <h3>Average Price (ETH/CVN): {averagePrice} ETH</h3>
-  
+
+            <div className={`status-bar ${isAuctionActive ? 'ongoing' : 'closed'}`}>
+          {isAuctionActive ? 'Ongoing' : 'Closed'}
+            </div>
+
           {isAuctionActive ? (
             <div>
-              <h3>Current Price: {currentPrice} ETH</h3>
-              <h3>End Time: {new Date(endTime * 1000).toLocaleString()}</h3>
-              <h3>Remaining Supply: {remainingSupply}</h3>
-              <h3>Reserved Tokens: {reservedTokens}</h3>
-              <h3>Time Left: {formatTimeLeft()}</h3>
+              <h3>Current Price: <br></br>{currentPrice} ETH</h3>
+              <h3>End Time: <br></br>{new Date(endTime * 1000).toLocaleString()}</h3>
+              <h3>Time Left: <br></br>{formatTimeLeft()}</h3>
+              <h3>Remaining Supply: <br></br>{remainingSupply}</h3>
+              <h3>Reserved Tokens (CVN): <br></br>{reservedTokens}</h3>
               <input
                 type="number"
                 placeholder="Enter bid amount"
                 value={bidAmount}
                 onChange={(e) => setBidAmount(e.target.value)}
               />
-              <button onClick={handleBidSubmit} disabled={loading}>
+              {/* <button onClick={handleBidSubmit} disabled={loading}>
                 {loading ? 'Submitting...' : 'Place Bid'}
-              </button>
+              </button> */}
+            </div>
+          ) : auctionEnded ? (
+            <div>
+              <h3>Auction Status: Auction has ended</h3>
+              {/* {canWithdraw && (
+                <button onClick={canWithdraw}>Withdraw Tokens</button>
+              )} */}
             </div>
           ) : (
             <div>
-              <h3>Auction Status: {auctionEnded ? 'Auction has ended' : 'Auction is not active'}</h3>
-              {canWithdraw && (
-                <button onClick={handleWithdraw}>Withdraw Tokens</button>
-              )}
+              <h3>Auction Status: Auction is not active</h3>
             </div>
           )}
           {errorMessage && <p style={{ color: 'red' }}>{errorMessage}</p>}
