@@ -1,29 +1,36 @@
 'use client';
 
+import { formatEther, parseEther } from 'ethers';
 import { useState, useEffect } from 'react';
 import { Contract, BrowserProvider } from 'ethers';
-import contractJson from '../../../dutch-auction-contracts/artifacts/contracts/DutchAuction.sol/DutchAuction.json';
-import { contractAddress } from '../constants';
+// import contractJson from '../../../dutch-auction-contracts/artifacts/contracts/DutchAuction.sol/DutchAuction.json';
+import { contractAddress, contractJson } from '../constants';
 
 export default function StartAuction() {
   const [account, setAccount] = useState(null);
   const [contract, setContract] = useState(null);
   const [auctionDuration, setAuctionDuration] = useState(5);
-  const [totalSupply, setTotalSupply] = useState(0);
-  const [initialPrice, setInitialPrice] = useState(0);
+  //const [totalSupply, setTotalSupply] = useState(0); 
+  //const [initialPrice, setInitialPrice] = useState(0);
   const [timeLeft, setTimeLeft] = useState(null);
   const [isAuctionActive, setIsAuctionActive] = useState(false);
   const [startTime, setStartTime] = useState(null);
   const [endTime, setEndTime] = useState(null);
   const [loading, setLoading] = useState(false); // Loading state
+  const [ethBalance, setEthBalance] = useState(null);
+  let provider;
 
   // Function to connect Wallet
   const connectWallet = async () => {
     if (typeof window.ethereum !== 'undefined') {
       try {
-        const provider = new BrowserProvider(window.ethereum);
+        provider = new BrowserProvider(window.ethereum); // Initialize provider here
         const accounts = await provider.send('eth_requestAccounts', []);
-        setAccount(accounts[0]);
+        const account = accounts[0];
+        setAccount(account);
+
+        // Fetch and set ETH balance for the connected account
+        await fetchEthBalance(account);
 
         const signer = await provider.getSigner();
         const contractInstance = new Contract(contractAddress, contractJson.abi, signer);
@@ -40,6 +47,16 @@ export default function StartAuction() {
       }
     } else {
       alert('Please install MetaMask to use this application.');
+    }
+  };
+
+  const fetchEthBalance = async (account) => {
+    if (!account || !provider) return;
+    try {
+      const balance = await provider.getBalance(account);
+      setEthBalance(balance.toString());
+    } catch (error) {
+      console.error("Error fetching ETH balance:", error);
     }
   };
 
@@ -150,7 +167,7 @@ export default function StartAuction() {
 
   return (
     <div className="auction-container">
-      <h1>Start Auction</h1>
+      <h1>Admin Page</h1>
 
       <button
         className={`connect-button ${account ? 'connected' : ''}`}
@@ -159,8 +176,10 @@ export default function StartAuction() {
         {account ? `Connected: ${account}` : 'Connect Wallet'}
       </button>
 
+      <h3>ETH Balance: <br></br>{ethBalance ? `${parseFloat(formatEther(ethBalance)).toFixed(4)}` : 'Loading...'}</h3>
+
       <label>
-        Auction Duration:
+        <b>Auction Duration:</b>
         <br /><br />
         <select
           value={auctionDuration}
@@ -197,9 +216,6 @@ export default function StartAuction() {
           <h2>Time Left: {formatTime(timeLeft)}</h2>
         </div>
       )}
-
-      <p>Total Supply: {totalSupply}</p>
-      <p>Current Bid Price (Initial Price): {initialPrice}</p>
 
       <a href="/">
         <button className="main-page-button">Go to Main Page</button>
