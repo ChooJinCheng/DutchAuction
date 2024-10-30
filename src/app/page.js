@@ -388,6 +388,7 @@ export default function DutchAuctionPage() {
         // Listen for AuctionEnded events if necessary
         contractInstance.on("AuctionEnded", () => {
             console.log("AuctionEnded Event received");
+            setOwnerLoading(false);
             setIsAuctionActive(false);
             setAuctionEnded(true);
             setCanWithdraw(true);
@@ -447,6 +448,7 @@ export default function DutchAuctionPage() {
             return () => clearInterval(timer);
         } else if (timeLeft <= 0 && isAuctionActive && endTime) {
             endAuction();
+            setOwnerLoading(true);
             setIsAuctionActive(false);
             setAuctionEnded(true);
             alert("Auction has ended!");
@@ -758,7 +760,7 @@ export default function DutchAuctionPage() {
                                         <Button variant="contained" color="primary" fullWidth
                                             onClick={startAuction}
                                             disabled={!account || isAuctionActive || ownerLoading}>
-                                            {ownerLoading ? 'Starting...' : 'Start Auction'}
+                                            {ownerLoading ? 'Processing...' : 'Start Auction'}
                                         </Button>
                                     </Box>
                                 </TabPanel>
