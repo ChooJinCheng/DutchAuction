@@ -1,4 +1,4 @@
-'use client'; 
+'use client';
 
 import { useState, useEffect } from 'react';
 import { Contract, BrowserProvider } from 'ethers';
@@ -9,7 +9,7 @@ export default function StartAuction() {
   const [account, setAccount] = useState(null);
   const [contract, setContract] = useState(null);
   const [auctionDuration, setAuctionDuration] = useState(5);
-  const [totalSupply, setTotalSupply] = useState(0); 
+  const [totalSupply, setTotalSupply] = useState(0);
   const [initialPrice, setInitialPrice] = useState(0);
   const [timeLeft, setTimeLeft] = useState(null);
   const [isAuctionActive, setIsAuctionActive] = useState(false);
@@ -45,10 +45,10 @@ export default function StartAuction() {
 
   // startAuction Function
   const startAuction = async () => {
-    if (contract && auctionDuration >= 5) { 
+    if (contract && auctionDuration >= 5) {
       try {
         setLoading(true);
-        
+
         // Start auction with specified parameters
         const tx = await contract.startAuction(auctionDuration * 60);
         await tx.wait(); // Wait for transaction confirmation
@@ -57,12 +57,12 @@ export default function StartAuction() {
 
         const currentTime = Math.floor(Date.now() / 1000);
         const auctionEndTime = currentTime + auctionDuration * 60;
-        
+
         // Save auction time/state in localStorage
         localStorage.setItem('auctionStatus', 'ongoing');
         localStorage.setItem('auctionStartTime', currentTime);
         localStorage.setItem('auctionEndTime', auctionEndTime);
-        
+
         setIsAuctionActive(true);
         setStartTime(currentTime);
         setEndTime(auctionEndTime);
@@ -85,11 +85,24 @@ export default function StartAuction() {
     }
   };
 
+  const endAuction = async () => {
+    try {
+      const tx = await contract.finalizeAuction();
+      await tx.wait(); // Wait for transaction confirmation
+
+      // Handle success, e.g., update state or display a success message
+      console.log("Auction ended successfully");
+    } catch (error) {
+      // Handle errors, e.g., display an error message
+      console.error("Error starting auction:", error);
+    }
+  };
+
   useEffect(() => {
     // Check localStorage for auction state on component mount
     const savedStartTime = localStorage.getItem('auctionStartTime');
     const savedEndTime = localStorage.getItem('auctionEndTime');
-    
+
     if (savedStartTime && savedEndTime) {
       const currentTime = Math.floor(Date.now() / 1000);
       const startTime = parseInt(savedStartTime, 10);
@@ -116,6 +129,7 @@ export default function StartAuction() {
           if (prevTime <= 1) {
             clearInterval(timer);
             setIsAuctionActive(false);
+
             alert("Auction has ended!");
             localStorage.removeItem('auctionStartTime');
             localStorage.removeItem('auctionEndTime');
@@ -139,16 +153,16 @@ export default function StartAuction() {
       <h1>Start Auction</h1>
 
       <button
-        className={`connect-button ${account ? 'connected' : ''}`} 
+        className={`connect-button ${account ? 'connected' : ''}`}
         onClick={connectWallet}
       >
         {account ? `Connected: ${account}` : 'Connect Wallet'}
       </button>
-  
+
       <label>
         Auction Duration:
         <br /><br />
-        <select 
+        <select
           value={auctionDuration}
           onChange={(e) => setAuctionDuration(Number(e.target.value))}
         >
@@ -159,14 +173,14 @@ export default function StartAuction() {
         </select>
       </label>
 
-      <button 
-        className="start-auction-button" 
-        onClick={startAuction} 
+      <button
+        className="start-auction-button"
+        onClick={startAuction}
         disabled={!account || isAuctionActive || loading} // Disable if loading
       >
         {loading ? 'Starting...' : 'Start Auction'}
       </button>
-  
+
       <div className={`status-bar ${isAuctionActive ? 'ongoing' : 'closed'}`}>
         {isAuctionActive ? 'Ongoing' : 'Closed'}
       </div>
@@ -177,7 +191,7 @@ export default function StartAuction() {
           <p>Auction will end at: {new Date(endTime * 1000).toLocaleString()}</p>
         </div>
       )}
-  
+
       {isAuctionActive && (
         <div className="timer">
           <h2>Time Left: {formatTime(timeLeft)}</h2>

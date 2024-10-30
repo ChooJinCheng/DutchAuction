@@ -53,6 +53,10 @@ contract DutchAuction is Ownable, ReentrancyGuard {
         return owner();
     }
 
+    function getTokenAddress() public view returns (address) {
+        return address(token);
+    }
+
     modifier activeAuction() {
         require(isAuctionActive(), "Auction is not active");
         _;
@@ -264,4 +268,3 @@ contract DutchAuction is Ownable, ReentrancyGuard {
         require(success, "Funds not refunded successfully");
     }
 }
-

@@ -7,6 +7,9 @@ async function main() {
     await dutchAuction.waitForDeployment();
 
     console.log("DutchAuction deployed to:", await dutchAuction.getAddress());
+
+    const tokenAddress = await dutchAuction.getTokenAddress();
+    console.log("Token Address:", tokenAddress);
 }
 
 main().catch((error) => {

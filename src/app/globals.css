@@ -6,7 +6,8 @@ body {
   padding: 0;
 }
 
-h1, h2 {
+h1,
+h2 {
   color: #333;
   text-align: center;
 }
@@ -29,7 +30,8 @@ a {
 
 /* Connect Wallet Button */
 .connect-button {
-  background-color: #4c5caf; /* Default blue */
+  background-color: #4c5caf;
+  /* Default blue */
   color: white;
   padding: 12px 20px;
   border: none;
@@ -41,34 +43,41 @@ a {
 }
 
 .connect-button:hover {
-  background-color: #3f4e8f; /* Darker blue on hover */
+  background-color: #3f4e8f;
+  /* Darker blue on hover */
 }
 
 /* Connected State */
 .connect-button.connected {
-  background-color: #4CAF50; /* Green when connected */
+  background-color: #4CAF50;
+  /* Green when connected */
 }
 
 .connect-button.connected:hover {
-  background-color: #45a049; /* Darker green on hover */
+  background-color: #45a049;
+  /* Darker green on hover */
 }
 
 /* Header Section */
 .header-section {
-  background-color: #007bff; /* Change this to the blue color you want, e.g., #007bff for Bootstrap blue */
+  background-color: #007bff;
+  /* Change this to the blue color you want, e.g., #007bff for Bootstrap blue */
   color: white;
   padding: 10px;
   border-radius: 5px;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin-bottom: 20px; /* Space below header */
-  
+  margin-bottom: 20px;
+  /* Space below header */
+
 }
 
 .header-section h3 {
-  margin: 0 10px; /* Margin for the ETH balance and current chain info */
-  font-size: 12pt; /* 12 points */
+  margin: 0 10px;
+  /* Margin for the ETH balance and current chain info */
+  font-size: 12pt;
+  /* 12 points */
 }
 
 /* Status Bar */
@@ -78,15 +87,18 @@ a {
   color: white;
   font-weight: bold;
   text-align: center;
-  margin-top: 20px; /* Add some space above the status bar */
+  margin-top: 20px;
+  /* Add some space above the status bar */
 }
 
 .status-bar.ongoing {
-  background-color: #4CAF50; /* Green for ongoing auctions */
+  background-color: #4CAF50;
+  /* Green for ongoing auctions */
 }
 
 .status-bar.closed {
-  background-color: #007bff; /* Blue for closed auctions */
+  background-color: #007bff;
+  /* Blue for closed auctions */
 }
 
 
@@ -104,8 +116,6 @@ input[type="text"] {
   padding: 10px;
   border: 1px solid #ccc;
   border-radius: 5px;
-  margin-bottom: 20px;
-  box-sizing: border-box;
   font-size: 16px;
 }
 
@@ -169,4 +179,3 @@ input[type="text"] {
   margin-bottom: 20px;
   transition: background-color 0.3s;
 }
-
