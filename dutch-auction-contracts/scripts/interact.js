@@ -11,6 +11,7 @@ async function main() {
 
     const ownerAddress = await dutchAuction.getOwner();
     console.log("Owner's address:", ownerAddress);
+    console.log("Current signer address:", owner.address);
 
     // Start the auction as the owner
     const auctionDuration = 3600;

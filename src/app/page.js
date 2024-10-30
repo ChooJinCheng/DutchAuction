@@ -21,6 +21,7 @@ export default function Home() {
   const [reservedTokens, setReservedTokens] = useState(null);
   const [isAuctionActive, setIsAuctionActive] = useState(false);
   const [timeLeft, setTimeLeft] = useState(null);
+  const [isPopupOpen, setIsPopupOpen] = useState(false);
   const [bidAmount, setBidAmount] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [auctionEnded, setAuctionEnded] = useState(false);
@@ -99,15 +100,6 @@ export default function Home() {
     }
   };
 
-  // const handleGoToAdminPage = () => {
-  //   // Ensure account is defined before navigating
-  //   if (account) {
-  //     router.push(`/start-auction?account=${account}`); // Construct URL with query parameters
-  //   } else {
-  //     console.warn("Account is not defined. Cannot navigate to admin page.");
-  //   }
-  // };
-  
   // Disconnect from wallet
   const disconnectWallet = () => {
     setAccount(null);
@@ -279,6 +271,27 @@ export default function Home() {
     return `${minutes}:${seconds < 10 ? '0' + seconds : seconds}`;
   };
 
+  const openPopup = () => {
+    setIsPopupOpen(true);
+  };
+
+  const closePopup = () => {
+    setIsPopupOpen(false);
+    setBidAmount('');
+    setErrorMessage('');
+  };
+
+  const handleBidSubmit = () => {
+    const parsedBid = parseFloat(bidAmount);
+    if (isNaN(parsedBid) || parsedBid <= 0) {
+      setErrorMessage('Please enter a valid bid amount above 0 ETH');
+    } else {
+      // Proceed with bid submission logic here
+      closePopup();
+      console.log(`Bid submitted: ${bidAmount} ETH`);
+    }
+  };
+
   return (
     <div className="auction-container">
       {!account ? (
@@ -313,15 +326,26 @@ export default function Home() {
               <h3>Time Left: <br></br>{formatTimeLeft()}</h3>
               <h3>Remaining Supply: <br></br>{remainingSupply}</h3>
               <h3>Reserved Tokens (CVN): <br></br>{reservedTokens}</h3>
-              <input
-                type="number"
-                placeholder="Enter bid amount"
-                value={bidAmount}
-                onChange={(e) => setBidAmount(e.target.value)}
-              />
-              {/* <button onClick={handleBidSubmit} disabled={loading}>
-                {loading ? 'Submitting...' : 'Place Bid'}
-              </button> */}
+              <button onClick={openPopup}>Place Bid</button>
+
+      {isPopupOpen && (
+        <div className="popup">
+          <div className="popup-content">
+            <h3>Enter Bid Amount</h3>
+            <input
+              type="number"
+              placeholder="Enter bid amount (min 0.01 ETH)"
+              value={bidAmount}
+              onChange={(e) => setBidAmount(e.target.value)}
+              min="0.01"
+              step="0.01"
+            />
+            {errorMessage && <p className="error">{errorMessage}</p>}
+            <button onClick={handleBidSubmit}>Submit Bid</button>
+            <button onClick={closePopup}>Cancel</button>
+          </div>
+        </div>
+      )}
             </div>
           ) : auctionEnded ? (
             <div>

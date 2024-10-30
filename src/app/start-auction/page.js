@@ -36,9 +36,6 @@ export default function StartAuction() {
         const contractInstance = new Contract(contractAddress, contractJson.abi, signer);
         setContract(contractInstance);
 
-        // Only fetch balance if an account is connected
-        await fetchEthBalance(account);
-
         contractInstance.on("AuctionStarted", (start, end) => {
           console.log("AuctionStarted Event received:", start, end);
           setStartTime(start);
