@@ -89,11 +89,12 @@ export default function DutchAuctionPage() {
     /* User Bidding States Declarations */
     const [account, setAccount] = useState(null);
     const [contract, setContract] = useState(null);
-    const [totalSupply, setTotalSupply] = useState(0);
-    const [initialPrice, setInitialPrice] = useState(0);
-    const [currentPrice, setCurrentPrice] = useState(null);
-    const [startTime, setStartTime] = useState(null);
-    const [endTime, setEndTime] = useState(null);
+    const [totalSupply, setTotalSupply] = useState(0); //Number
+    const [initialPrice, setInitialPrice] = useState(BigInt(0)); //BigInt
+    const [currentPrice, setCurrentPrice] = useState(BigInt(0)); //BigInt
+    const [minPrice, setMinPrice] = useState(BigInt(0)); //BigInt
+    const [startTime, setStartTime] = useState(null); //Number
+    const [endTime, setEndTime] = useState(null); //Number
     const [remainingSupply, setRemainingSupply] = useState(null);
     const [reservedTokens, setReservedTokens] = useState(0);
     const [isAuctionActive, setIsAuctionActive] = useState(null);
@@ -205,20 +206,30 @@ export default function DutchAuctionPage() {
 
         // Clear other states
         setTotalSupply(0);
-        setInitialPrice(0);
+        setInitialPrice(null);
         setCurrentPrice(null);
+        setMinPrice(null);
+        setStartTime(null);
         setEndTime(null);
         setRemainingSupply(null);
-        setReservedTokens(0);
+        setReservedTokens(null);
         setIsAuctionActive(null);
         setTimeLeft(null);
         setBidAmount('');
+        setBidError('');
         setErrorMessage('');
         setAuctionEnded(false);
         setCanWithdraw(false);
         setLoading(false);
         setEthBalance(null);
         setNetwork(null);
+        setIsPopupOpen(null);
+
+        setOwnerAccount(null);
+        setOwnerBalance(null);
+        setOwnerContract(null);
+        setAuctionDuration(null);
+        setOwnerLoading(false);
 
         if (contract && ownerContract) {
             contract.removeAllListeners();
@@ -229,23 +240,24 @@ export default function DutchAuctionPage() {
     const initializeAuction = async () => {
         try {
             await fetchTotalSupply();
-            await fetchInitialPrice();
+            const initialPrice = await fetchInitialPrice();
             const auctionStatus = await fetchAuctionStatus();
+            const minPrice = await fetchMinPrice();
 
             if (auctionStatus) {
-                await initializeAuctionDetails();
+                await initializeAuctionDetails(initialPrice, minPrice);
             }
         } catch (error) {
             console.error("Error initializing auction:", error);
         }
     };
 
-    const initializeAuctionDetails = async () => {
+    const initializeAuctionDetails = async (initialPrice, minPrice) => {
         try {
-            await fetchStartTime();
+            const startTime = await fetchStartTime();
             const endTime = await fetchEndTime();
             calculateTimeLeft(endTime); //Set TimeLeft to the state
-
+            calculateEstimatedBidPrice(startTime, endTime, initialPrice, minPrice);
             console.log('AuctionDetails initialized');
         } catch (error) {
             console.error("Error initializing auction details:", error);
@@ -321,7 +333,18 @@ export default function DutchAuctionPage() {
     const fetchInitialPrice = async () => {
         try {
             const initialPrice = await contract.initialPrice();
-            setInitialPrice(formatEther(initialPrice));
+            setInitialPrice(initialPrice);
+            return initialPrice;
+        } catch (error) {
+            console.error("Error fetching initial price:", error);
+        }
+    };
+
+    const fetchMinPrice = async () => {
+        try {
+            const minPrice = await contract.minPrice();
+            setMinPrice(minPrice);
+            return minPrice;
         } catch (error) {
             console.error("Error fetching initial price:", error);
         }
@@ -341,6 +364,7 @@ export default function DutchAuctionPage() {
         try {
             const startTime = await contract.startTime();
             setStartTime(Number(startTime));
+            return Number(startTime);
         } catch (error) {
             console.error("Error fetching auction start time:", error);
         }
@@ -354,6 +378,16 @@ export default function DutchAuctionPage() {
         } catch (error) {
             console.error("Error fetching auction end time:", error);
         }
+    };
+
+    const calculateEstimatedBidPrice = (startTime, endTime, initialPrice, minPrice) => {
+        const now = Math.floor(Date.now() / 1000);
+        const timeElapsed = BigInt(now - startTime);
+        const duration = BigInt(endTime - startTime);
+        const priceDrop = (initialPrice - minPrice) / duration;
+        const currentPrice = initialPrice - (priceDrop * timeElapsed);
+        const finalPrice = currentPrice < minPrice ? minPrice : currentPrice;
+        setCurrentPrice(finalPrice);
     };
 
 
@@ -376,13 +410,13 @@ export default function DutchAuctionPage() {
     //Setup listeners for the auction
     const setupEventListeners = (contractInstance) => {
         // Listen for AuctionStarted events
-        contractInstance.on("AuctionStarted", (start, end) => {
-            console.log("AuctionStarted Event received:", start, end);
+        contractInstance.on("AuctionStarted", (startTime, endTime) => {
+            console.log("AuctionStarted Event received:", startTime, endTime);
             setOwnerLoading(false);
             setIsAuctionActive(true);
-            setStartTime(Number(start));
-            setEndTime(Number(end));
-            setTimeLeft(Number(end) - Math.floor(Date.now() / 1000));
+            setStartTime(Number(startTime));
+            setEndTime(Number(endTime));
+            setTimeLeft(Number(endTime) - Math.floor(Date.now() / 1000));
         });
 
         // Listen for AuctionEnded events if necessary
@@ -443,7 +477,7 @@ export default function DutchAuctionPage() {
         if (isAuctionActive && timeLeft > 0 && endTime) {
             const timer = setInterval(() => {
                 calculateTimeLeft(endTime);
-                //setTimeLeft((prevTime) => prevTime - 1);
+                calculateEstimatedBidPrice(startTime, endTime, initialPrice, minPrice);
             }, 1000);
             return () => clearInterval(timer);
         } else if (timeLeft <= 0 && isAuctionActive && endTime) {
@@ -558,12 +592,12 @@ export default function DutchAuctionPage() {
                             {/* Main Stats */}
                             <StatBox>
                                 <StatLabel>Total Supply:</StatLabel>
-                                <StatValue>{totalSupply.toFixed(2) || 'Loading...'}</StatValue>
+                                <StatValue>{totalSupply.toFixed(2) ?? '-'}</StatValue>
                             </StatBox>
 
                             <StatBox>
                                 <StatLabel>Intial Price: (ETH/CVN)</StatLabel>
-                                <StatValue>{initialPrice}</StatValue>
+                                <StatValue>{formatEther(initialPrice) ?? '-'}</StatValue>
                             </StatBox>
 
                             {/* Tabs */}
@@ -598,18 +632,18 @@ export default function DutchAuctionPage() {
 
                                             <StatBox>
                                                 <StatLabel>Time left:</StatLabel>
-                                                <StatValue variant="h5">{formatTime(timeLeft)}</StatValue>
+                                                <StatValue variant="h5">{formatTime(timeLeft) ?? '-'}</StatValue>
                                             </StatBox>
 
                                             <StatBox>
                                                 <StatLabel>Current Bid Price (ETH):</StatLabel>
-                                                <StatValue></StatValue>
+                                                <StatValue>{formatEther(currentPrice) ?? '-'}</StatValue>
                                             </StatBox>
 
                                             <StatBox>
                                                 <StatLabel>Reserved CVN:</StatLabel>
                                                 <StatValue>
-                                                    {reservedTokens.toFixed(4)} / {totalSupply.toFixed(4)}
+                                                    {reservedTokens.toFixed(4) ?? '-'} / {totalSupply.toFixed(4) ?? '-'}
                                                 </StatValue>
                                             </StatBox>
 
