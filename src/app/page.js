@@ -24,6 +24,8 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import TextField from '@mui/material/TextField';
 import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
+import { toast, ToastContainer } from 'react-toastify';
+import 'react-toastify/dist/ReactToastify.css';
 
 
 import { formatEther, parseEther, Contract, BrowserProvider, JsonRpcProvider, Wallet } from 'ethers';
@@ -106,11 +108,12 @@ export default function DutchAuctionPage() {
     const [bidError, setBidError] = useState('');
     const [errorMessage, setErrorMessage] = useState('');
     const [auctionEnded, setAuctionEnded] = useState(false);
-    const [canWithdraw, setCanWithdraw] = useState(false);
+    const [canWithdraw, setCanWithdraw] = useState(true);
     const [loading, setLoading] = useState(false);
     const [ethBalance, setEthBalance] = useState(null);
     const [network, setNetwork] = useState(null);
     const [isPopupOpen, setIsPopupOpen] = useState(false);
+    const [processedEvents, setProcessedEvents] = useState(new Set());
     let userProvider; // Declare provider her (new)
 
     /* Owner States Declarations */
@@ -148,17 +151,22 @@ export default function DutchAuctionPage() {
 
     //Onload, when new contract is initialized, load all details
     useEffect(() => {
+        let cleanup;
+
         if (contract) {
             // initialize auction
             initializeAuction();
             //Iniitalize owner account for owner page
             initializeOwnerAccount();
             // Set up event listeners
-            setupEventListeners(contract);
+            cleanup = setupEventListeners(contract);
             return () => {
+                if (cleanup) {
+                    cleanup();
+                }
             };
         }
-    }, [contract]);
+    }, [contract, account]);
 
     // Connect to MetaMask
     const connectWallet = async () => {
@@ -225,7 +233,7 @@ export default function DutchAuctionPage() {
         setBidError('');
         setErrorMessage('');
         setAuctionEnded(false);
-        setCanWithdraw(false);
+        setCanWithdraw(true);
         setLoading(false);
         setEthBalance(null);
         setNetwork(null);
@@ -253,6 +261,7 @@ export default function DutchAuctionPage() {
 
             if (auctionStatus) {
                 await initializeAuctionDetails(initialPrice, minPrice);
+                setCanWithdraw(false);
             }
         } catch (error) {
             console.error("Error initializing auction:", error);
@@ -265,7 +274,6 @@ export default function DutchAuctionPage() {
             const endTime = await fetchEndTime();
             calculateTimeLeft(endTime); //Set TimeLeft to the state
             calculateEstimatedBidPrice(startTime, endTime, initialPrice, minPrice);
-            console.log('AuctionDetails initialized');
         } catch (error) {
             console.error("Error initializing auction details:", error);
         }
@@ -417,56 +425,6 @@ export default function DutchAuctionPage() {
         setCurrentPrice(finalPrice);
     };
 
-    //Setup listeners for the auction
-    const setupEventListeners = (contractInstance) => {
-        // Listen for AuctionStarted events
-        contractInstance.on("AuctionStarted", (startTime, endTime) => {
-            console.log("AuctionStarted Event received:", startTime, endTime);
-            setOwnerLoading(false);
-            setIsAuctionActive(true);
-            setStartTime(Number(startTime));
-            setEndTime(Number(endTime));
-            setTimeLeft(Number(endTime) - Math.floor(Date.now() / 1000));
-        });
-
-        // Listen for AuctionEnded events
-        contractInstance.on("AuctionEnded", () => {
-            console.log("AuctionEnded Event received");
-            setOwnerLoading(false);
-            setIsAuctionActive(false);
-            setAuctionEnded(true);
-            setCanWithdraw(true);
-            setStartTime(null);
-            setEndTime(null);
-            alert("Auction has ended!");
-        });
-
-        // Listen for BidSuccess events
-        contractInstance.on("BidSuccess", (bidder, pricePerToken) => {
-            if (bidder.toLowerCase() === account.toLowerCase()) {
-                console.log("BidSuccess Event received");
-                fetchRemainingSupply();
-            }
-        });
-
-        // Listen for TokensReserved events
-        contractInstance.on("TokensReserved", (bidder, tokensAmount, tokenPrice) => {
-            if (bidder.toLowerCase() === account.toLowerCase()) {
-                console.log("TokensReserved Event received");
-
-                setFinalPrice(tokenPrice);
-                setReservedTokens(Number(tokensAmount));
-            }
-        });
-
-        // Listen for RefundAmount events
-        contractInstance.on("RefundAmount", (bidder, refundAmount) => {
-            if (bidder.toLowerCase() === account.toLowerCase()) {
-                setRefundAmount(refundAmount);
-            }
-        });
-    };
-
     const openPopup = () => {
         setIsPopupOpen(true);
     };
@@ -504,7 +462,7 @@ export default function DutchAuctionPage() {
         } else {
             bidAuction(bidAmount);
             closePopup();
-            console.log(`Bid submitted: ${bidAmount} ETH`);
+            // console.log(`Bid submitted: ${bidAmount} ETH`);
         }
     };
 
@@ -514,13 +472,157 @@ export default function DutchAuctionPage() {
                 const tx = await contract.bid({ value: parseEther(bidAmount) });
                 await tx.wait(); // Wait for transaction confirmation
 
-                console.log("Auction Bidded Successfully");
+                console.log("Auction Bid request sent to Blockchain");
             } catch (error) {
                 // Handle errors, e.g., display an error message
                 console.error("Error bidding auction:", error);
             }
         }
     };
+
+    const withdrawAllTokens = async () => {
+        if (contract) {
+            try {
+                setCanWithdraw(false);
+                const tx = await contract.withdrawTokens();
+                await tx.wait(); // Wait for transaction confirmation
+
+                console.log("Withdraw Tokens request sent to Blockchain");
+            } catch (error) {
+                // Handle errors, e.g., display an error message
+                console.error("Error withdrawing tokens:", error);
+            }
+        }
+    };
+
+    /* Setup listeners section */
+    const handleEvent = (eventName, txHash, callback) => {
+        const eventKey = `${eventName}-${txHash}`;
+        if (!processedEvents.has(eventKey)) {
+            setProcessedEvents(prev => new Set([...prev, eventKey]));
+            callback();
+        }
+    };
+
+    const setupEventListeners = (contractInstance) => {
+        const listeners = {
+            auctionStarted: (startTime, endTime, event) => {
+                handleEvent('AuctionStarted', event.log.transactionHash, () => {
+                    console.log("AuctionStarted Event received");
+                    setOwnerLoading(false);
+                    setIsAuctionActive(true);
+                    setCanWithdraw(false);
+                    setStartTime(Number(startTime));
+                    setEndTime(Number(endTime));
+                    setTimeLeft(Number(endTime) - Math.floor(Date.now() / 1000));
+                    toast.success("Auction has started!", {
+                        position: "bottom-right",
+                        autoClose: 3000,
+                        hideProgressBar: false,
+                        closeOnClick: true,
+                        pauseOnHover: true,
+                        draggable: true,
+                    });
+                });
+            },
+
+            auctionEnded: (endTime, event) => {
+                handleEvent('AuctionEnded', event.log.transactionHash, () => {
+                    console.log("AuctionEnded Event received");
+                    setOwnerLoading(false);
+                    setIsAuctionActive(false);
+                    setAuctionEnded(true);
+                    setCanWithdraw(true);
+                    setStartTime(null);
+                    setEndTime(null);
+                    toast.success("Auction has ended!", {
+                        position: "bottom-right",
+                        autoClose: 3000,
+                        hideProgressBar: false,
+                        closeOnClick: true,
+                        pauseOnHover: true,
+                        draggable: true,
+                    });
+                });
+            },
+
+            bidSuccess: (bidder, pricePerToken, event) => {
+                if (bidder.toLowerCase() === account.toLowerCase()) {
+                    handleEvent('BidSuccess', event.log.transactionHash, () => {
+                        console.log("BidSuccess Event received");
+                        fetchRemainingSupply();
+                        toast.success("Your bid is successful", {
+                            position: "bottom-right",
+                            autoClose: 3000,
+                            hideProgressBar: false,
+                            closeOnClick: true,
+                            pauseOnHover: true,
+                            draggable: true,
+                        });
+                    });
+                }
+            },
+
+            tokensReserved: (bidder, tokensAmount, tokenPrice, event) => {
+                if (bidder.toLowerCase() === account.toLowerCase()) {
+                    handleEvent('TokensReserved', event.log.transactionHash, () => {
+                        console.log("TokensReserved Event received");
+                        setFinalPrice(tokenPrice);
+                        setReservedTokens(Number(tokensAmount));
+                        fetchTotalReservedTokens();
+                    });
+                }
+            },
+
+            refundAmount: (bidder, refundAmount, event) => {
+                if (bidder.toLowerCase() === account.toLowerCase()) {
+                    handleEvent('RefundAmount', event.log.transactionHash, () => {
+                        console.log("RefundAmount Event received");
+                        setRefundAmount(refundAmount);
+                    });
+                }
+            },
+
+            tokensWithdrawn: (bidder, withdrawTokenAmount, event) => {
+                if (bidder.toLowerCase() === account.toLowerCase()) {
+                    handleEvent('TokensWithdrawn', event.log.transactionHash, () => {
+                        console.log("TokensWithdrawn Event received");
+                        fetchTotalReservedTokens();
+                        setCanWithdraw(true);
+                        toast.success("You have successfully withdrawn all tokens of " + withdrawTokenAmount, {
+                            position: "bottom-right",
+                            autoClose: 3000,
+                            hideProgressBar: false,
+                            closeOnClick: true,
+                            pauseOnHover: true,
+                            draggable: true,
+                        });
+                    });
+                }
+            }
+        };
+
+        // Register all event listeners
+        contractInstance.on("AuctionStarted", listeners.auctionStarted);
+        contractInstance.on("AuctionEnded", listeners.auctionEnded);
+        contractInstance.on("BidSuccess", listeners.bidSuccess);
+        contractInstance.on("TokensReserved", listeners.tokensReserved);
+        contractInstance.on("RefundAmount", listeners.refundAmount);
+        contractInstance.on("TokensWithdrawn", listeners.tokensWithdrawn);
+
+        // Return cleanup function
+        return () => {
+            contractInstance.off("AuctionStarted", listeners.auctionStarted);
+            contractInstance.off("AuctionEnded", listeners.auctionEnded);
+            contractInstance.off("BidSuccess", listeners.bidSuccess);
+            contractInstance.off("TokensReserved", listeners.tokensReserved);
+            contractInstance.off("RefundAmount", listeners.refundAmount);
+            contractInstance.off("TokensWithdrawn", listeners.tokensWithdrawn);
+            // Clear processed events on cleanup
+            setProcessedEvents(new Set());
+        };
+    };
+
 
     /* Timer section */
     useEffect(() => {
@@ -560,7 +662,7 @@ export default function DutchAuctionPage() {
                 const tx = await ownerContract.startAuction(auctionDuration * 60);
                 await tx.wait(); // Wait for transaction confirmation
 
-                alert("Auction started successfully!");
+                console.log("Start Auction request sent to Blockchain");
             } catch (error) {
                 let errorMessage = "Failed to start auction. Please check your wallet and try again.";
                 if (error.code === 'INSUFFICIENT_FUNDS') {
@@ -569,7 +671,6 @@ export default function DutchAuctionPage() {
                     errorMessage = "Transaction rejected by user.";
                 }
                 console.error("Error starting auction:", error);
-                alert(errorMessage);
             } finally {
                 //setOwnerLoading(false);
             }
@@ -587,7 +688,7 @@ export default function DutchAuctionPage() {
                     await tx.wait(); // Wait for transaction confirmation
 
                     // Handle success, e.g., update state or display a success message
-                    console.log("Auction ended successfully");
+                    console.log("Auction ended request sent to Blockchain");
                 } catch (error) {
                     // Handle errors, e.g., display an error message
                     console.error("Error starting auction:", error);
@@ -597,7 +698,7 @@ export default function DutchAuctionPage() {
     };
 
     return (
-        <Box sx={{ flexGrow: 1 }}>
+        <><Box sx={{ flexGrow: 1 }}>
             {/* Header AppBar */}
             {!account ? (
                 <Container maxWidth="md" sx={{ mt: 4, display: 'flex', justifyContent: 'center' }}>
@@ -667,8 +768,7 @@ export default function DutchAuctionPage() {
                                 <TabPanel value={tabValue} index={0}>
                                     <StatusChip
                                         label={isAuctionActive ? 'ONGOING' : 'CLOSED'}
-                                        status={isAuctionActive ? 'ONGOING' : 'CLOSED'}
-                                    />
+                                        status={isAuctionActive ? 'ONGOING' : 'CLOSED'} />
                                     {isAuctionActive ? (
                                         <>
                                             <StatBox>
@@ -788,8 +888,16 @@ export default function DutchAuctionPage() {
                                                     {refundAmount <= 0 ? '-' : formatEther(refundAmount)} ETH
                                                 </StatValue>
                                             </StatBox>
-                                            <Button variant="outlined" color="primary">
-                                                Withdraw CVN
+                                            <StatBox>
+                                                <StatLabel>Total bidded CVN:</StatLabel>
+                                                <StatValue variant="h5">
+                                                    {totalReservedTokens} CVN
+                                                </StatValue>
+                                            </StatBox>
+                                            <Button variant="outlined" color="primary"
+                                                disabled={!canWithdraw || totalReservedTokens <= 0}
+                                                onClick={withdrawAllTokens}>
+                                                {canWithdraw ? 'Withdraw CVN' : 'Processing...'}
                                             </Button>
                                         </Box>
 
@@ -805,8 +913,8 @@ export default function DutchAuctionPage() {
                                                     {totalReservedTokens} CVN
                                                 </StatValue>
                                             </StatBox>
-                                            <Button variant="outlined" color="primary">
-                                                Withdraw CVN
+                                            <Button variant="outlined" color="primary" disabled={!canWithdraw || totalReservedTokens <= 0} onClick={withdrawAllTokens}>
+                                                {canWithdraw ? 'Withdraw CVN' : 'Processing...'}
                                             </Button>
                                         </Box>
                                     )}
@@ -860,7 +968,16 @@ export default function DutchAuctionPage() {
                         </StyledPaper>
                     </Container></>
             )}
-        </Box>
-
+        </Box><ToastContainer
+                position="bottom-right"
+                autoClose={3000}
+                hideProgressBar={false}
+                newestOnTop={false}
+                closeOnClick
+                rtl={false}
+                pauseOnFocusLoss
+                draggable
+                pauseOnHover
+                theme="light" /></>
     );
 }
