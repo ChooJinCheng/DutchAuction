@@ -24,13 +24,14 @@ import LogoutIcon from '@mui/icons-material/Logout';
 import TextField from '@mui/material/TextField';
 import Select from '@mui/material/Select';
 import MenuItem from '@mui/material/MenuItem';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
 import { toast, ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 
 
 import { formatEther, parseEther, Contract, BrowserProvider, JsonRpcProvider, Wallet } from 'ethers';
 
-import { contractAddress, contractJson, getNetworkName, ownerPK } from './constants';
+import { contractAddress, contractJson, getNetworkName, ownerPK, tokenAddress, tokenContractJson } from './constants';
 
 // Custom styled components
 const StyledPaper = styled(Paper)(({ theme }) => ({
@@ -91,6 +92,7 @@ export default function DutchAuctionPage() {
     /* User Bidding States Declarations */
     const [account, setAccount] = useState(null);
     const [contract, setContract] = useState(null);
+    const [tokenContract, setTokenContract] = useState(null);
     const [totalSupply, setTotalSupply] = useState(0);
     const [initialPrice, setInitialPrice] = useState(BigInt(0));
     const [currentPrice, setCurrentPrice] = useState(BigInt(0));
@@ -113,6 +115,8 @@ export default function DutchAuctionPage() {
     const [ethBalance, setEthBalance] = useState(null);
     const [network, setNetwork] = useState(null);
     const [isPopupOpen, setIsPopupOpen] = useState(false);
+    const [isWalletPopupOpen, setIsWalletPopupOpen] = useState(false);
+    const [cvnWalletBalance, setCvnWalletBalance] = useState('0');
     const [processedEvents, setProcessedEvents] = useState(new Set());
     let userProvider; // Declare provider her (new)
 
@@ -183,6 +187,9 @@ export default function DutchAuctionPage() {
                 const contractInstance = new Contract(contractAddress, contractJson.abi, signer);
                 setContract(contractInstance);
 
+                const tokenContractInstance = new Contract(tokenAddress, tokenContractJson.abi, signer);
+                setTokenContract(tokenContractInstance);
+
                 // Fetch network information
                 const network = await userProvider.getNetwork();
                 setNetwork({
@@ -209,10 +216,26 @@ export default function DutchAuctionPage() {
             console.error("Error fetching ETH balance:", error);
         }
     };
+
+    const fetchTokenBalance = async () => {
+        try {
+            const balance = await tokenContract.balanceOf(account);
+            setCvnWalletBalance(formatEther(balance));
+            setIsWalletPopupOpen(true);
+        } catch (error) {
+            console.error("Error fetching CVN balance:", error);
+        }
+    }
+
+    const closeWalletPopup = () => {
+        setIsWalletPopupOpen(false);
+        setCvnWalletBalance(BigInt(0));
+    };
     // Disconnect from wallet
     const disconnectWallet = () => {
         setAccount(null);
         setContract(null);
+        setTokenContract(null);
         localStorage.removeItem('connectedAccount'); // Remove connected account from localStorage
 
         // Clear other states
@@ -238,6 +261,8 @@ export default function DutchAuctionPage() {
         setEthBalance(null);
         setNetwork(null);
         setIsPopupOpen(false);
+        setIsWalletPopupOpen(false);
+        setCvnWalletBalance('0');
 
         setOwnerAccount(null);
         setOwnerBalance(null);
@@ -733,6 +758,9 @@ export default function DutchAuctionPage() {
                         </Typography>
 
                         <IconButton color="inherit" size="large">
+                            <AccountBalanceWalletIcon onClick={fetchTokenBalance} />
+                        </IconButton>
+                        <IconButton color="inherit" size="large">
                             <RefreshIcon onClick={refreshPage} />
                         </IconButton>
                         <IconButton color="inherit" size="large">
@@ -740,6 +768,17 @@ export default function DutchAuctionPage() {
                         </IconButton>
                     </Toolbar>
                 </AppBar><Container maxWidth="md" sx={{ mt: 4 }}>
+                        <Dialog open={isWalletPopupOpen} onClose={closeWalletPopup} fullWidth maxWidth="sm">
+                            <DialogTitle>CVN Balance</DialogTitle>
+                            <DialogContent>
+                                <p>Your CVN Balance: {cvnWalletBalance} CVN</p>
+                            </DialogContent>
+                            <DialogActions>
+                                <Button onClick={closeWalletPopup} color="primary">
+                                    Close
+                                </Button>
+                            </DialogActions>
+                        </Dialog>
                         <StyledPaper elevation={3}>
                             {/* Main Stats */}
                             <StatBox>

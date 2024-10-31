@@ -9,7 +9,7 @@ contract ChainvisionToken is ERC20, Ownable {
 
     // minted Token will be distributed by the contract owner only
     function mintTokens(address to, uint256 amount) external onlyOwner {
-        _mint(to, amount);
+        _mint(to, amount * 10 ** decimals());
     }
 
     // unsold tokens will be burned away only by the contract owner
@@ -17,5 +17,3 @@ contract ChainvisionToken is ERC20, Ownable {
         _burn(from, amount);
     }
 }
-
-
