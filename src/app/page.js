@@ -529,6 +529,10 @@ export default function DutchAuctionPage() {
         }
     };
 
+    let auctionStartedToast;
+    let auctionEndedToast;
+    let auctionBidToast;
+    let auctionWithdrawToast;
     const setupEventListeners = (contractInstance) => {
         const listeners = {
             auctionStarted: (startTime, endTime, event) => {
@@ -540,14 +544,17 @@ export default function DutchAuctionPage() {
                     setStartTime(Number(startTime));
                     setEndTime(Number(endTime));
                     setTimeLeft(Number(endTime) - Math.floor(Date.now() / 1000));
-                    toast.success("Auction has started!", {
-                        position: "bottom-right",
-                        autoClose: 3000,
-                        hideProgressBar: false,
-                        closeOnClick: true,
-                        pauseOnHover: true,
-                        draggable: true,
-                    });
+                    if (!auctionStartedToast) {
+                        auctionStartedToast = toast.success("Auction has started!", {
+                            position: "bottom-right",
+                            autoClose: 3000,
+                            hideProgressBar: false,
+                            closeOnClick: true,
+                            pauseOnHover: true,
+                            draggable: true,
+                            onClose: () => auctionStartedToast = null,
+                        });
+                    }
                 });
             },
 
@@ -560,14 +567,17 @@ export default function DutchAuctionPage() {
                     setCanWithdraw(true);
                     setStartTime(null);
                     setEndTime(null);
-                    toast.success("Auction has ended!", {
-                        position: "bottom-right",
-                        autoClose: 3000,
-                        hideProgressBar: false,
-                        closeOnClick: true,
-                        pauseOnHover: true,
-                        draggable: true,
-                    });
+                    if (!auctionEndedToast) {
+                        auctionEndedToast = toast.success("Auction has ended!", {
+                            position: "bottom-right",
+                            autoClose: 3000,
+                            hideProgressBar: false,
+                            closeOnClick: true,
+                            pauseOnHover: true,
+                            draggable: true,
+                            onClose: () => auctionEndedToast = null,
+                        });
+                    }
                 });
             },
 
@@ -576,14 +586,17 @@ export default function DutchAuctionPage() {
                     handleEvent('BidSuccess', event.log.transactionHash, () => {
                         console.log("BidSuccess Event received");
                         fetchRemainingSupply();
-                        toast.success("Your bid is successful", {
-                            position: "bottom-right",
-                            autoClose: 3000,
-                            hideProgressBar: false,
-                            closeOnClick: true,
-                            pauseOnHover: true,
-                            draggable: true,
-                        });
+                        if (!auctionBidToast) {
+                            auctionBidToast = toast.success("Your bid is successful", {
+                                position: "bottom-right",
+                                autoClose: 3000,
+                                hideProgressBar: false,
+                                closeOnClick: true,
+                                pauseOnHover: true,
+                                draggable: true,
+                                onClose: () => auctionBidToast = null,
+                            });
+                        }
                     });
                 }
             },
@@ -614,14 +627,17 @@ export default function DutchAuctionPage() {
                         console.log("TokensWithdrawn Event received");
                         fetchTotalReservedTokens();
                         setCanWithdraw(true);
-                        toast.success("You have successfully withdrawn all tokens of " + withdrawTokenAmount, {
-                            position: "bottom-right",
-                            autoClose: 3000,
-                            hideProgressBar: false,
-                            closeOnClick: true,
-                            pauseOnHover: true,
-                            draggable: true,
-                        });
+                        if (!auctionWithdrawToast) {
+                            auctionWithdrawToast = toast.success("You have successfully withdrawn all tokens of " + withdrawTokenAmount, {
+                                position: "bottom-right",
+                                autoClose: 3000,
+                                hideProgressBar: false,
+                                closeOnClick: true,
+                                pauseOnHover: true,
+                                draggable: true,
+                                onClose: () => auctionWithdrawToast = null,
+                            });
+                        }
                     });
                 }
             }
