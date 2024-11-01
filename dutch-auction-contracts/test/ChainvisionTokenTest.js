@@ -33,37 +33,41 @@ describe("ChainvisionToken", function () {
 
     describe("Minting", function () {
         it("Should allow the owner to mint tokens", async function () {
+            const mintBaseAmount = BigInt(100);
             const mintAmount = ethers.parseEther("100");
-            await chainvisionToken.connect(owner).mintTokens(bidder1.getAddress(), mintAmount);
+            await chainvisionToken.connect(owner).mintTokens(bidder1.getAddress(), mintBaseAmount);
             expect(await chainvisionToken.balanceOf(bidder1.getAddress())).to.equal(mintAmount);
         });
 
         it("Should increase total supply when minting", async function () {
             const initialSupply = await chainvisionToken.totalSupply();
+            const mintBaseAmount = BigInt(100);
             const mintAmount = ethers.parseEther("100");
-            await chainvisionToken.connect(owner).mintTokens(bidder1.getAddress(), mintAmount);
+            await chainvisionToken.connect(owner).mintTokens(bidder1.getAddress(), mintBaseAmount);
             expect(await chainvisionToken.totalSupply()).to.equal(initialSupply + mintAmount);
         });
 
         it("Should emit Transfer event when minting", async function () {
+            const mintBaseAmount = BigInt(100);
             const mintAmount = ethers.parseEther("100");
-            await expect(chainvisionToken.connect(owner).mintTokens(bidder1.getAddress(), mintAmount))
+            await expect(chainvisionToken.connect(owner).mintTokens(bidder1.getAddress(), mintBaseAmount))
                 .to.emit(chainvisionToken, "Transfer")
                 .withArgs(ethers.ZeroAddress, bidder1.getAddress(), mintAmount);
         });
 
         it("Should not allow non-owners to mint tokens", async function () {
+            const mintBaseAmount = BigInt(100);
             const mintAmount = ethers.parseEther("100");
-            await expect(chainvisionToken.connect(bidder1).mintTokens(bidder2.getAddress(), mintAmount))
+            await expect(chainvisionToken.connect(bidder1).mintTokens(bidder2.getAddress(), mintBaseAmount))
                 .to.be.revertedWithCustomError(chainvisionToken, "OwnableUnauthorizedAccount");
         });
     });
 
     describe("Burning", function () {
+        const initialBaseMint = BigInt(1000);
         const initialMint = ethers.parseEther("1000");
-
         beforeEach(async function () {
-            await chainvisionToken.connect(owner).mintTokens(bidder1.getAddress(), initialMint);
+            await chainvisionToken.connect(owner).mintTokens(bidder1.getAddress(), initialBaseMint);
         });
 
         it("Should allow the owner to burn tokens", async function () {
@@ -100,10 +104,11 @@ describe("ChainvisionToken", function () {
     });
 
     describe("Transfers", function () {
+        const initialBaseMint = BigInt(1000);
         const initialMint = ethers.parseEther("1000");
 
         beforeEach(async function () {
-            await chainvisionToken.connect(owner).mintTokens(bidder1.getAddress(), initialMint);
+            await chainvisionToken.connect(owner).mintTokens(bidder1.getAddress(), initialBaseMint);
         });
 
         it("Should transfer tokens between accounts", async function () {
@@ -128,10 +133,11 @@ describe("ChainvisionToken", function () {
     });
 
     describe("Allowances", function () {
+        const initialBaseMint = BigInt(1000);
         const initialMint = ethers.parseEther("1000");
 
         beforeEach(async function () {
-            await chainvisionToken.connect(owner).mintTokens(bidder1.getAddress(), initialMint);
+            await chainvisionToken.connect(owner).mintTokens(bidder1.getAddress(), initialBaseMint);
         });
 
         it("Should update allowances on approval", async function () {
