@@ -299,6 +299,7 @@ export default function DutchAuctionPage() {
             const endTime = await fetchEndTime();
             calculateTimeLeft(endTime); //Set TimeLeft to the state
             calculateEstimatedBidPrice(startTime, endTime, initialPrice, minPrice);
+            await fetchRemainingSupply();
         } catch (error) {
             console.error("Error initializing auction details:", error);
         }
@@ -328,36 +329,6 @@ export default function DutchAuctionPage() {
         const provider = new BrowserProvider(window.ethereum);
         const latestBlock = await provider.getBlockNumber();
         console.log('refreshPage: Latest block number:', latestBlock);
-    };
-
-    // Fetch data from the contract
-    const fetchContractData = async (contractInstance) => {
-        try {
-            const auctionStatus = await contractInstance.isAuctionActive();
-            const totalSupply = await contractInstance.totalSupply();
-            const averagePrice = await contractInstance.getAveragePrice();
-            setIsAuctionActive(auctionStatus);
-            setTotalSupply(totalSupply.toString());
-            setInitialPrice(formatEther(averagePrice));
-
-            if (auctionStatus) {
-                const currentPrice = await contractInstance.getCurrentPrice();
-                const endTime = await contractInstance.getEndTime();
-                const remainingSupply = await contractInstance.getRemainingSupply();
-                const reservedTokens = await contractInstance.getReservedTokens();
-
-                setCurrentPrice(formatEther(currentPrice));
-                setEndTime(Number(endTime.toString()));
-                setRemainingSupply(remainingSupply.toString());
-                setReservedTokens(reservedTokens.toString());
-                calculateTimeLeft(Number(endTime.toString()));
-            } else if (!auctionStatus && !auctionEnded) {
-                setAuctionEnded(true);
-                setCanWithdraw(true);
-            }
-        } catch (error) {
-            console.error("Error fetching contract data:", error);
-        }
     };
 
     // Total Supply
@@ -487,7 +458,6 @@ export default function DutchAuctionPage() {
         } else {
             bidAuction(bidAmount);
             closePopup();
-            // console.log(`Bid submitted: ${bidAmount} ETH`);
         }
     };
 
@@ -538,6 +508,7 @@ export default function DutchAuctionPage() {
             auctionStarted: (startTime, endTime, event) => {
                 handleEvent('AuctionStarted', event.log.transactionHash, () => {
                     console.log("AuctionStarted Event received");
+                    fetchRemainingSupply();
                     setOwnerLoading(false);
                     setIsAuctionActive(true);
                     setCanWithdraw(false);

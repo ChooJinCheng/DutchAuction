@@ -2,10 +2,8 @@ const hre = require("hardhat");
 
 async function main() {
     const [owner, bidder1, bidder2] = await hre.ethers.getSigners();
-    const provider = hre.ethers.provider;
-    const blockNumber = await provider.getBlockNumber();
-    console.log("Latest block number:", blockNumber);
-    /* // Get the deployed contract
+
+    // Get the deployed contract
     const DutchAuction = await hre.ethers.getContractFactory("DutchAuction");
     const dutchAuction = await DutchAuction.attach("0x5FbDB2315678afecb367f032d93F642f64180aa3");
 
@@ -35,14 +33,14 @@ async function main() {
 
     // Try to bid as bidder2 after auction ends
     await hre.network.provider.send("evm_increaseTime", [3601]);
-    await hre.network.provider.send("evm_mine"); 
+    await hre.network.provider.send("evm_mine");
 
     try {
         await dutchAuction.connect(bidder2).bid({ value: bidAmount });
     } catch (error) {
         console.log("Bidding after auction end failed as expected");
     }
-        */
+
 }
 
 main().catch((error) => {
