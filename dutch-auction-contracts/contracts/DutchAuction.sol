@@ -9,7 +9,7 @@ contract DutchAuction is Ownable, ReentrancyGuard {
     ChainvisionToken public token;
     uint public initialPrice;
     uint public finalPrice;
-    uint public minPrice = 100000000000000000; //0.1eth
+    uint public minPrice = 100000000000000000; //min bid price is set to 0.1eth
     uint public startTime;
     uint public endTime;
     uint public totalSupply;
@@ -48,11 +48,6 @@ contract DutchAuction is Ownable, ReentrancyGuard {
         token = new ChainvisionToken();
     }
 
-    // New function to get the owner's address
-    function getOwner() external view returns (address) {
-        return owner();
-    }
-
     function getTokenAddress() public view returns (address) {
         return address(token);
     }
@@ -78,7 +73,7 @@ contract DutchAuction is Ownable, ReentrancyGuard {
     //Fallback function to receive any ether that has no msg.data
     receive() external payable {}
 
-    //Need to call from frontend to start the auction (done)
+    //Start the auction based on the given duration
     function startAuction(uint duration) external onlyOwner notActiveAuction {
         require(duration >= 60, "Minimum duration is 60");
         startTime = block.timestamp;
@@ -88,7 +83,7 @@ contract DutchAuction is Ownable, ReentrancyGuard {
         emit AuctionStarted(startTime, endTime);
     }
 
-    //Need to call from frontend to end auction once timer is up
+    //Finalize auction once it has past the end time OR when supply limit has been met
     function finalizeAuction()
         public
         activeAuction
@@ -156,7 +151,7 @@ contract DutchAuction is Ownable, ReentrancyGuard {
         emit AuctionEnded(block.timestamp);
     }
 
-    //Need to call from frontend to participate in the auction for bidders
+    //Record a bid made during the auction
     function bid() external payable activeAuction {
         require(_isAuctionRunning(), "Auction has ended");
         finalPrice = getCurrentPrice();
@@ -178,7 +173,7 @@ contract DutchAuction is Ownable, ReentrancyGuard {
         }
     }
 
-    //Need to call from frontend to get latest price per token
+    //Obtain the latest bid price during an auction run
     function getCurrentPrice() public view returns (uint) {
         if (!_isAuctionRunning()) {
             return finalPrice;
@@ -189,7 +184,6 @@ contract DutchAuction is Ownable, ReentrancyGuard {
         return currentPrice < minPrice ? minPrice : currentPrice;
     }
 
-    //Need to call from frontend for bidders to withdraw their tokens
     // Allow bidders to withdraw their reserved tokens after the auction ends
     function withdrawTokens() external notActiveAuction nonReentrant {
         uint reservedAmount = reservedTokensByBidder[msg.sender];
@@ -202,7 +196,6 @@ contract DutchAuction is Ownable, ReentrancyGuard {
         emit TokensWithdrawn(msg.sender, reservedAmount);
     }
 
-    //Need to call from frontend for owner to retrieve eth stored in this contract
     // Withdraw funds to the auction owner
     function withdrawFunds() external onlyOwner nonReentrant {
         (bool success, ) = msg.sender.call{value: address(this).balance}("");
@@ -251,13 +244,9 @@ contract DutchAuction is Ownable, ReentrancyGuard {
         return bidsQueue.length;
     }
 
-    //Can call to obtain the current timestamp in the blockchain from frontend
     function getCurrentTimestamp() external view returns (uint) {
         return block.timestamp;
     }
-
-    //Need to call this to simulate the ticking of timestamp by mining an empty block
-    function triggerDummyBlock() external {}
 
     //This function is created for reentrancy attack test purpose only
     function refundAmountPublic(
